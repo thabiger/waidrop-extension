@@ -1,0 +1,32 @@
+# Chrome extension
+*.crx
+*.pem
+
+# Recon output (may contain sensitive DOM data)
+tools/recon/out/
+
+# Node
+node_modules/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+
+# Build output
+dist/
+
+# macOS
+.DS_Store
+
+# Local media exports and test fixtures
+media/

@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WAiDrop</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>WAiDrop</h1>
+      <p class="subtitle">WhatsApp Chat Archiver</p>
+    </header>
+
+    <section class="support-card" id="supportCard">
+      <div class="support-copy">
+        <strong>WAiDrop is free and open-source.</strong>
+        <p>I believe software handling your private chats should be transparent. If you share that belief, support WAiDrop’s development with a coffee.</p>
+      </div>
+      <a
+        id="donateBtn"
+        class="btn btn-primary btn-sm support-btn"
+        href="https://buymeacoffee.com/tomaszhabiq"
+        target="_blank"
+        rel="noopener"
+      >Support</a>
+    </section>
+    
+    <div class="status" id="status">
+      <p>Loading...</p>
+    </div>
+    
+    <div class="stats" id="stats" style="display: none;">
+      <div class="stat-item">
+        <span class="stat-label">Total Messages:</span>
+        <span class="stat-value" id="totalMessages">0</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">Pending upload:</span>
+        <span class="stat-value" id="pendingUpload">0</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">Media mode:</span>
+        <span class="stat-value" id="mediaModeStatus">Passive (no requests)</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">Full-res media:</span>
+        <span class="stat-value" id="totalMedia">0</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">Media pending:</span>
+        <span class="stat-value" id="pendingMedia">0</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">Media not downloaded:</span>
+        <span class="stat-value" id="notDownloadedMedia">0</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">Local media bytes:</span>
+        <span class="stat-value" id="localMediaBytes">0</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">Offloaded messages:</span>
+        <span class="stat-value" id="offloadedMessages">0</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">Last offload:</span>
+        <span class="stat-value" id="lastOffload">Never</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">Media pending / not downloaded:</span>
+        <span class="stat-value" id="mediaPendingTotal">0</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">Media repairs pending:</span>
+        <span class="stat-value" id="repairPending">0</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">Last Sync:</span>
+        <span class="stat-value" id="lastSync">Never</span>
+      </div>
+    </div>
+    
+    <div class="messages-container" id="messagesContainer" style="display: none;">
+      <h2>Recent Messages</h2>
+      <div id="messagesList"></div>
+    </div>
+
+    <details class="settings" id="storageBox">
+      <summary>Storage — Dropbox backup <span class="badge" id="archiveModeBadge">Encrypted</span></summary>
+      <div class="settings-grid">
+        <label>Account alias <input id="setAccount" type="text" placeholder="primary"></label>
+        <label>Encryption key <input id="setEncryptionKey" type="password" autocomplete="off" placeholder="base64, 32 bytes"></label>
+      </div>
+      <p class="settings-hint" id="accountAliasHint">Use one alias per WhatsApp account. Use a separate browser profile or device per account; switching accounts in the same profile is not supported.</p>
+      <p class="settings-hint">All archives are encrypted. The key is the only way to read the local and Dropbox archives.</p>
+      <label class="settings-check">
+        <input type="checkbox" id="setEncryptionKeyAcknowledged">
+        I saved a copy of the encryption key
+      </label>
+      <!-- DEVELOPER_BEGIN -->
+      <div class="developer-info" id="developerInfo">
+        <p class="settings-hint"><strong>Developer</strong></p>
+        <p class="settings-hint">
+          Required Dropbox app scopes: <code>account_info.read</code>,
+          <code>files.metadata.read</code> and <code>files.content.write</code>. The CLI also needs
+          <code>files.content.read</code>.
+        </p>
+        <p class="settings-hint">
+          Redirect URI for the Dropbox app console:
+          <code class="redirect-uri"></code>
+        </p>
+      </div>
+      <!-- DEVELOPER_END -->
+      <div class="actions actions-compact">
+        <button id="generateKeyBtn" class="btn btn-secondary btn-sm">Generate key</button>
+        <button id="copyKeyBtn" class="btn btn-secondary btn-sm">Copy key</button>
+      </div>
+      <div class="actions actions-compact">
+        <button id="connectDropboxBtn" class="btn btn-primary btn-sm">Connect Dropbox</button>
+        <button id="disconnectDropboxBtn" class="btn btn-secondary btn-sm">Disconnect</button>
+      </div>
+      <div class="actions actions-compact">
+        <button id="testBtn" class="btn btn-secondary btn-sm">Test connection</button>
+        <button id="uploadNowBtn" class="btn btn-secondary btn-sm">Upload now</button>
+      </div>
+      <p class="settings-status" id="dropboxStatus">Not connected.</p>
+      <label class="settings-check"><input type="checkbox" id="setEnabled"> Enable uploads</label>
+      <p class="settings-hint" id="encryptionHint">
+        All Dropbox archives are encrypted before upload. The key is never sent to Dropbox.
+        Save it before enabling uploads; without it the archive cannot be recovered.
+      </p>
+      <label class="settings-check">
+        <input type="checkbox" id="setSyncPreInstall">
+        Sync messages dated before installation
+      </label>
+      <p class="settings-hint" id="preInstallHint">
+        Only messages from installation onward are synced. Older messages stay local and
+        encrypted; enable full-history sync to upload them.
+      </p>
+    </details>
+
+    <details class="settings log-panel" id="logBox">
+      <summary>
+        Activity log
+        <span class="log-count" id="logCount" hidden>0</span>
+        <span class="log-error-dot" id="logErrorDot" title="Activity log contains errors" hidden></span>
+      </summary>
+      <div class="log-toolbar">
+        <button id="clearLogBtn" class="btn btn-secondary btn-sm">Clear log</button>
+      </div>
+      <div class="log-output" id="logOutput" role="log" aria-live="polite"></div>
+    </details>
+
+    <details class="settings" id="mediaBox">
+      <summary>Media capture</summary>
+      <div class="media-mode" role="radiogroup" aria-label="Media capture mode">
+        <label class="mode-card mode-off">
+          <input type="radio" name="mediaMode" value="off">
+          <span class="mode-copy">
+            <strong>Off</strong>
+            <span>Do not capture new full-resolution media. Existing records are unchanged.</span>
+          </span>
+        </label>
+        <label class="mode-card mode-passive">
+          <input type="radio" name="mediaMode" value="passive" checked>
+          <span class="mode-copy">
+            <strong>Passive <span class="badge badge-safe">Recommended</span></strong>
+            <span>Capture only media WhatsApp has already downloaded or that you have opened. Makes no WhatsApp media requests.</span>
+          </span>
+        </label>
+        <!-- ACTIVE_MEDIA_BEGIN -->
+        <label class="mode-card mode-active">
+          <input type="radio" name="mediaMode" value="active">
+          <span class="mode-copy">
+            <strong>Active <span class="badge badge-risk">May be recognized as automation</span></strong>
+            <span>Automatically download media WhatsApp has not cached. Makes WhatsApp media requests and may be recognized as automation. New messages only; no history backfill.</span>
+          </span>
+        </label>
+        <!-- ACTIVE_MEDIA_END -->
+      </div>
+      <p class="settings-hint" id="mediaModeSummary">Media mode: Off — no full-resolution media capture.</p>
+      <div class="advanced-media">
+        <!-- VIEW_ONCE_BEGIN -->
+        <label class="settings-check settings-check-stacked">
+          <span><input type="checkbox" id="setMediaViewOnce"> Include view-once media</span>
+          <small>Privacy-sensitive; availability depends on WhatsApp. Applies to media capture.</small>
+        </label>
+        <!-- VIEW_ONCE_END -->
+        <div class="settings-grid">
+          <label>Maximum media size (MB) <input id="setMediaMaxMb" type="number" min="1" max="50" step="1" value="20"></label>
+        </div>
+        <p class="settings-hint">
+          Applies to new media capture. Existing records keep their small preview in
+          <code>text</code>; captured media is encrypted at rest and in the archive.
+        </p>
+      </div>
+      <p class="settings-hint" id="mediaUploadsHint" hidden>Uploads are off — captured media stays on this device.</p>
+    </details>
+
+    <details class="settings" id="offloadBox">
+      <summary>Local storage</summary>
+      <label class="settings-check">
+        <input type="checkbox" id="setOffloadEnabled" checked>
+        Clear local message content after it is safely archived
+      </label>
+      <div class="settings-grid">
+        <label>Keep local copies for (days)
+          <input id="setOffloadRetentionDays" type="number" min="0" max="365" step="1" value="1">
+        </label>
+      </div>
+      <p class="settings-hint" id="offloadHint">
+        Offload only runs after uploads are enabled and the encryption key is
+        acknowledged. Offloaded text is removed from this device and exists only
+        in the encrypted Dropbox archive. Media that is not downloaded yet stays
+        local and is repaired when it arrives.
+      </p>
+      <div class="actions actions-compact">
+        <button id="runOffloadBtn" class="btn btn-secondary btn-sm">Run cleanup now</button>
+        <button id="repairMediaBtn" class="btn btn-secondary btn-sm">Repair media</button>
+      </div>
+      <p class="settings-status" id="offloadStatus">Offload paused.</p>
+    </details>
+
+    <div class="actions settings-actions">
+      <button id="saveSettingsBtn" class="btn btn-primary">Save settings</button>
+    </div>
+    <p class="settings-status" id="settingsStatus" aria-live="polite"></p>
+
+    <div class="actions">
+      <button id="refreshBtn" class="btn btn-primary">Refresh</button>
+      <button id="exportBtn" class="btn btn-secondary">Export</button>
+      <button id="clearBtn" class="btn btn-secondary">Clear</button>
+    </div>
+
+    <p class="support-line">
+      <a href="https://tnkrd.com/waidrop/privacy" target="_blank" rel="noopener">Privacy</a>
+      ·
+      <a href="https://tnkrd.com/waidrop/terms" target="_blank" rel="noopener">Terms</a>
+      ·
+      <a href="mailto:waidrop@tnkrd.com">waidrop@tnkrd.com</a>
+    </p>
+  </div>
+  
+  <script src="../utils/buildFlags.js"></script>
+  <script src="../utils/mediaSettings.js"></script>
+  <script type="module" src="popup.js"></script>
+</body>
+</html>
+

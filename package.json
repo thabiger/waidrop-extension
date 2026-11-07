@@ -1,0 +1,22 @@
+{
+  "name": "waidrop",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "license": "MIT",
+  "description": "Chrome extension archiving WhatsApp Web chats locally and encrypted to Dropbox, with media, full-history sync and offline catch-up",
+  "scripts": {
+    "test": "node tests/parse.test.mjs && node tests/content.test.mjs && node tests/store-serializer.test.mjs && node tests/store-hook.test.mjs && node tests/store-catch-up.test.mjs && node tests/bridge.test.mjs && node tests/stealth.test.mjs && node tests/no-dynamic-import.test.mjs && node tests/local-crypto.test.mjs && node tests/idb.test.mjs && node tests/background.test.mjs && node tests/crypto.test.mjs && node tests/uploader-dropbox.test.mjs && node tests/archive-upload.test.mjs && node tests/dropbox-connect.test.mjs && node tests/media.test.mjs && node tests/media-settings.test.mjs && node tests/activity-log.test.mjs && node tests/offload.test.mjs && node tests/popup.test.mjs && node tests/build-flags.test.mjs && node tests/license.test.mjs",
+    "fixtures": "node tools/recon/make-fixtures.mjs",
+    "build": "node scripts/build.mjs",
+    "build:public": "node scripts/build.mjs --public",
+    "verify:package": "node scripts/verify-package.mjs",
+    "verify:package:public": "node scripts/verify-package.mjs --public",
+    "release:check": "npm test && npm run build && npm run verify:package",
+    "release:check:public": "npm test && npm run build:public && npm run verify:package:public"
+  },
+  "devDependencies": {
+    "fake-indexeddb": "^6.2.6",
+    "jsdom": "^30.1.3"
+  }
+}
