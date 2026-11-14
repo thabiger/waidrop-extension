@@ -2,9 +2,8 @@
 
 WAiDrop is a Chrome extension that archives WhatsApp Web chats into an
 encrypted local IndexedDB store and can back up an encrypted archive to
-Dropbox. It is free and open source under the Apache License, Version 2.0,
-and includes all chats, full-history sync, offline catch-up, multiple WhatsApp accounts and
-full-resolution images, stickers and GIFs.
+Dropbox. Connect it to your chosen AI through MCP to find answers, 
+organize plans and pick up what needs you.
 
 ## The whole picture
 
