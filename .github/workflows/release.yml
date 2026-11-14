@@ -1,0 +1,55 @@
+# Tag-driven store artifact. Pushing a v* tag (or running this workflow with an
+# existing tag) builds and verifies the public package, then attaches it to a
+# GitHub Release. Only the public ZIP is published; the personal build is never
+# attached anywhere.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to release (for example v1.0.0)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Check tag matches manifest version
+        run: |
+          version="v$(node -p "require('./manifest.json').version")"
+          if [ "$TAG" != "$version" ]; then
+            echo "Tag $TAG does not match manifest version $version" >&2
+            exit 1
+          fi
+
+      - run: npm ci
+
+      - run: npm run release:check:public
+
+      - name: Attach public ZIP to the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$TAG" dist/*-public.zip --verify-tag \
+            --title "WAiDrop $TAG" --generate-notes --clobber \
+            || gh release upload "$TAG" dist/*-public.zip --clobber

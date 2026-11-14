@@ -195,6 +195,11 @@ npm run release:check:public  # test + public build + verify
 
 Tests use `jsdom` and `fake-indexeddb`; no WhatsApp or Dropbox account is needed.
 
+Releases are tag-driven: pushing a `v*` tag (matching the manifest version, e.g.
+`v1.0.0`) runs the Release workflow, which builds and verifies the public
+package and attaches `dist/waidrop-<version>-public.zip` to a GitHub Release.
+The personal ZIP is never attached.
+
 The personal build keeps view-once media capture and active media downloads
 enabled (private use, at your own risk). The public build disables them via
 `utils/buildFlags.js`, which the build replaces with
