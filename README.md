@@ -230,38 +230,6 @@ Releases are tag-driven: pushing a `v*` tag (matching the manifest version, e.g.
 package and attaches `dist/waidrop-<version>-public.zip` to a GitHub Release.
 The personal ZIP is never attached.
 
-The personal build keeps view-once media capture and active media downloads
-enabled (private use, at your own risk). The public build disables them via
-`utils/buildFlags.js`, which the build replaces with
-`tools/release/buildFlags.public.js`, and strips the matching popup controls.
-`verify:package:public` fails if view-once UI or the active media option leaks
-into the store package.
-
-### File structure
-
-```
-background/background.js    service worker, capture routing, key lifecycle
-background/idb.js           IndexedDB archive/outbox/media stores
-background/crypto.js        encrypted envelope primitives
-background/localCrypto.js   local record/chat/media encryption codec
-background/archiveCodec.js  encrypted archive encoding
-background/archivePolicy.js install-date / pre-install policy
-background/installInfo.js   installation timestamp and fallback
-background/uploader.js      Dropbox uploader (history policy, media, chat index)
-background/dropbox.js       Dropbox OAuth/API
-background/config.js        Dropbox app and account defaults
-content/content.js          DOM fallback, directory enrichment, media relay
-background/inject-main.js   MAIN-world store hook + media capture
-popup/                      settings and recent-message UI
-utils/messageParser.js      DOM message parser
-utils/mediaSettings.js      media mode migration/resolution
-utils/buildFlags.js         build-variant feature flags (view-once capture)
-docs/                       archive, capture model, legal, listing and support docs
-scripts/build.mjs           Chrome Web Store package builder
-scripts/runtime-files.mjs   runtime package allowlist
-scripts/verify-package.mjs  package content and secret checks
-```
-
 ## Privacy
 
 - Local message text, sender/chat names and phone numbers, and media bytes are
