@@ -6,6 +6,33 @@ Dropbox. It is free and open source under the Apache License, Version 2.0,
 and includes all chats, full-history sync, offline catch-up, multiple WhatsApp accounts and
 full-resolution images, stickers and GIFs.
 
+## Demo
+
+[<img src="https://i.ytimg.com/vi/Az0S2JRi1bE/oar2.jpg" alt="WAiDrop product demo" width="300">](https://youtube.com/shorts/Az0S2JRi1bE)
+
+WAiDrop builds the archive; the AI you connect creates the answers. For example,
+ask a compatible AI: *"Using WAiDrop, review the last three days. What still
+needs me? Include the chat, timestamp and a draft reply."*
+
+## The whole picture
+
+WAiDrop links your WhatsApp Web session to an encrypted archive in your own
+Dropbox and exposes it to your chosen AI through a local MCP server.
+
+![WAiDrop flow: WhatsApp on your phone → WhatsApp Web + WAiDrop for Chrome → encrypted Dropbox archive → MCP server → your chosen AI](docs/assets/the-whole-picture.png)
+
+- **WhatsApp on your phone** — link your computer from Linked devices.
+- **WhatsApp Web + WAiDrop for Chrome** — archives chat data already delivered
+  to WhatsApp Web.
+- **Encrypted Dropbox archive** — stored in your own Dropbox account.
+- **MCP server** — a local AI connector that reads your archive.
+- **Your chosen AI** — ask about your chats through a compatible MCP app; setup
+  varies by app.
+
+WAiDrop provides your archive. Your connected AI creates the answers. See the
+[MCP setup guide](https://github.com/thabiger/waidrop-cli/blob/main/docs/mcp.md)
+and [CLI documentation](https://github.com/thabiger/waidrop-cli#readme).
+
 ## How WAiDrop works with WhatsApp
 
 WAiDrop starts with chat data that WhatsApp Web has already delivered to your
@@ -64,6 +91,13 @@ readers who want to support development; donations do not unlock features.
 4. Click "Load unpacked" and select this directory.
 5. Open the extension popup, read the first-run disclosure and accept it before
    capture starts.
+
+### Installation walkthrough
+
+[![WAiDrop installation and ChatGPT desktop walkthrough](https://i.ytimg.com/vi/4S1On8wO6k0/maxresdefault.jpg)](https://youtu.be/4S1On8wO6k0)
+
+Keep WhatsApp Web open while your archive builds. Save your encryption key
+somewhere secure — you will need it to read your archive.
 
 ## What it captures
 
