@@ -6,14 +6,6 @@ Dropbox. It is free and open source under the Apache License, Version 2.0,
 and includes all chats, full-history sync, offline catch-up, multiple WhatsApp accounts and
 full-resolution images, stickers and GIFs.
 
-## Demo
-
-[<img src="https://i.ytimg.com/vi/Az0S2JRi1bE/oar2.jpg" alt="WAiDrop product demo" width="300">](https://youtube.com/shorts/Az0S2JRi1bE)
-
-WAiDrop builds the archive; the AI you connect creates the answers. For example,
-ask a compatible AI: *"Using WAiDrop, review the last three days. What still
-needs me? Include the chat, timestamp and a draft reply."*
-
 ## The whole picture
 
 WAiDrop links your WhatsApp Web session to an encrypted archive in your own
@@ -32,6 +24,10 @@ Dropbox and exposes it to your chosen AI through a local MCP server.
 WAiDrop provides your archive. Your connected AI creates the answers. See the
 [MCP setup guide](https://github.com/thabiger/waidrop-cli/blob/main/docs/mcp.md)
 and [CLI documentation](https://github.com/thabiger/waidrop-cli#readme).
+
+## Demo
+
+[<img src="https://i.ytimg.com/vi/Az0S2JRi1bE/oar2.jpg" alt="WAiDrop product demo" width="300">](https://youtube.com/shorts/Az0S2JRi1bE)
 
 ## How WAiDrop works with WhatsApp
 
