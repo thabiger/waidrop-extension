@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "WAiDrop: WhatsApp Chat Archiver",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "minimum_chrome_version": "102",
   "description": "Free encrypted WhatsApp Web archive in Dropbox with CLI query, full-history sync and downloaded full-resolution images/stickers.",
   "permissions": [

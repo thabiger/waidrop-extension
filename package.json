@@ -1,7 +1,7 @@
 {
   "name": "waidrop",
   "private": true,
-  "version": "1.0.1",
+  "version": "1.0.2",
   "type": "module",
   "license": "Apache-2.0",
   "description": "Chrome extension archiving WhatsApp Web chats locally and encrypted to Dropbox, with media, full-history sync and offline catch-up",
