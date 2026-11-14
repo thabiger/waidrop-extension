@@ -24,6 +24,7 @@ import { FakeMessageChannel, installWindowPostMessage } from './helpers/fake-mes
 import { TEST_BRIDGE_KEY, startMainHook as startHook } from './helpers/main-hook-loader.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const consentSrc = readFileSync(path.join(root, 'utils', 'consent.js'), 'utf8');
 const mediaSettingsSrc = readFileSync(path.join(root, 'utils', 'mediaSettings.js'), 'utf8');
 const parserSrc = readFileSync(path.join(root, 'utils', 'messageParser.js'), 'utf8');
 const contentSrc = readFileSync(path.join(root, 'content', 'content.js'), 'utf8');
@@ -73,6 +74,7 @@ function makeChromeMock(sent, mediaRelay, bridgeKey) {
       local: {
         get: async () => ({
           settings: {},
+          waidropConsent: { version: 1, acceptedAt: Date.now() },
         }),
       },
       onChanged: { addListener() {} },
@@ -106,7 +108,6 @@ const collections = {
   Contact: { get: () => null },
 };
 window.require = (name) => (name === 'WAWebCollections' ? collections : undefined);
-window.__WAIDROP_EXPOSE_TEST_API__ = true;
 
 const emit = (msg) => (listeners['add'] || []).forEach((cb) => cb(msg));
 
@@ -145,6 +146,7 @@ let evilCount = 0;
 
 // --- the real content script connects with the per-session MAC handshake.
 const instancesBefore = FakeMessageChannel.instances.length;
+window.eval(consentSrc);
 window.eval(mediaSettingsSrc);
 window.eval(parserSrc);
 window.eval(contentSrc);
@@ -289,6 +291,48 @@ check(
 );
 check('no window.postMessage for media', postCalls.length === 0, `${postCalls.length} call(s)`);
 
+// --- post-handshake frames are signed and sequence-numbered: a script that
+// --- shares the transferred port cannot forge or tamper with them.
+{
+  const live = ourChannels[0];
+  const legitFrame = live.port2.sent
+    .map((m) => m.data)
+    .find((d) => d && typeof d.kind === 'string' && Number.isInteger(d.seq));
+  check(
+    'post-handshake frames carry a sequence and MAC',
+    !!legitFrame && Number.isInteger(legitFrame.seq) && /^[0-9a-f]{64}$/.test(legitFrame.mac),
+    legitFrame && JSON.stringify({ seq: legitFrame.seq, mac: legitFrame.mac })
+  );
+
+  const tampered = {
+    kind: 'message',
+    payload: { ...legitFrame.payload, msgId: 'TAMPER-1', text: 'tampered' },
+    seq: legitFrame.seq + 500,
+    mac: legitFrame.mac,
+  };
+  live.port2.postMessage(tampered);
+  await sleep(150);
+  const tamperedSeen = sent
+    .filter((message) => message.type === 'MESSAGE_BATCH')
+    .flatMap((batch) => batch.records || [])
+    .some((record) => record.msgId === 'TAMPER-1');
+  check('tampered h2c frame is rejected', !tamperedSeen);
+
+  live.port1.postMessage({
+    type: 'config',
+    media: { enabled: true, activeFetch: true },
+    catchUp: true,
+    seq: 500,
+    mac: '0'.repeat(64),
+  });
+  await sleep(80);
+  check(
+    'forged c2h config frame is rejected',
+    api.state.mediaConfig.activeFetch === false,
+    String(api.state.mediaConfig.activeFetch)
+  );
+}
+
 api.stop();
 dom.window.close();
 
@@ -304,7 +348,6 @@ dom.window.close();
   const sent2 = [];
   window2.chrome = makeChromeMock(sent2, [], TEST_BRIDGE_KEY);
   window2.require = (name) => (name === 'WAWebCollections' ? collections : undefined);
-  window2.__WAIDROP_EXPOSE_TEST_API__ = true;
 
   // Attacker listener registered before the hook: grabs every transferred
   // port, clobbers the hook's handler and answers MAC replies with the old
@@ -326,6 +369,7 @@ dom.window.close();
   const before = FakeMessageChannel.instances.length;
   const warnings = [];
   window2.console.warn = (...args) => warnings.push(args.join(' '));
+  window2.eval(consentSrc);
   window2.eval(mediaSettingsSrc);
   window2.eval(parserSrc);
   window2.eval(contentSrc);

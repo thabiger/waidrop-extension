@@ -21,6 +21,7 @@ const files = [
   'popup/popup.js',
   'utils/messageParser.js',
   'utils/mediaSettings.js',
+  'utils/consent.js',
 ];
 
 let failures = 0;

@@ -1,0 +1,54 @@
+WAiDrop builds an encrypted local archive of WhatsApp Web chats and can back it
+up to your own Dropbox app folder. On first run it shows a plain-language
+disclosure and asks for consent before it starts archiving. Query the archive
+by chat, phone number or date, and export media, with the companion
+open-source waidrop-cli.
+
+AI access through MCP is provided by the separate open-source WAiDrop CLI/MCP
+server, installed separately. AI provider compatibility varies; provider names
+are examples, not endorsements.
+
+Features:
+- group and 1:1 chats
+- text, metadata, and full-resolution images, stickers and GIFs that WhatsApp
+  Web has already downloaded or that you have opened (individual captures are
+  capped at 20 MiB)
+- video, audio and documents archived as metadata/placeholders only
+- encrypted local archive and encrypted Dropbox backup
+- unlimited encrypted Dropbox sync
+- offline catch-up of messages received while the WhatsApp Web tab was closed
+- optional full-history sync for messages dated before installation that WAiDrop
+  has already captured; it does not request older history from WhatsApp
+- multiple WhatsApp accounts in one Dropbox app folder, one alias per account
+  (use a separate browser profile or device per account)
+- Off / Passive media capture (Passive is the default)
+- local offload and media repair
+
+Multiple accounts require separate browser profiles or devices; switching
+WhatsApp accounts inside the same profile is not supported.
+
+Encryption is mandatory. The key is never sent to Dropbox and must be saved by
+the user; losing it makes the archive unreadable.
+
+WAiDrop is free and open source under the Apache License, Version 2.0.
+The popup contains an optional Buy Me a Coffee donation link; donations do not unlock features.
+
+WAiDrop is a local, read-only archiver, not an automation bot or unofficial API.
+It does not send messages, drive the WhatsApp UI, create accounts, hook WebSocket
+traffic, or route your session through a server. It uses only chat data that
+WhatsApp Web has already delivered to your open browser tab. It does not use the
+WhatsApp API, a proxy, a backend, or automated messaging. The extension never
+requests media from WhatsApp; it captures only media WhatsApp has already
+downloaded or that you have opened. View-once ("disappearing") media is never captured in the
+published build; such messages are skipped and only their metadata is
+archived. The developer does not receive your archive, Dropbox token or
+encryption key.
+
+WAiDrop is not affiliated with, endorsed by or authorized by WhatsApp or Meta.
+Despite the read-only design, interpretation of WhatsApp's Terms belongs to
+WhatsApp/Meta; capture may stop working and accounts may be restricted. Use at
+your own risk.
+
+Privacy: https://waidrop.tnkrd.com/privacy
+Terms: https://waidrop.tnkrd.com/terms
+Support: https://waidrop.tnkrd.com/support

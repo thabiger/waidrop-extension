@@ -13,10 +13,28 @@
       <p class="subtitle">WhatsApp Chat Archiver</p>
     </header>
 
+    <section class="consent-card" id="consentPanel" hidden>
+      <h2>Before WAiDrop starts</h2>
+      <p>WAiDrop reads messages, captions, media and metadata that WhatsApp Web has already delivered to your browser. It stores them in an encrypted archive on this device. If you connect Dropbox, it uploads encrypted objects to your own Dropbox app folder. The developer never receives your archive, Dropbox token or encryption key.</p>
+      <p>WAiDrop does not send messages, mark chats as read, or automate WhatsApp. <span id="consentMediaPolicy">Disappearing/self-destructing media is not captured.</span> You must save your encryption key; if you lose it, the archive cannot be recovered.</p>
+      <label class="settings-check">
+        <input type="checkbox" id="consentCheckbox">
+        I understand and agree
+      </label>
+      <button id="consentAcceptBtn" class="btn btn-primary" disabled>Enable archiving</button>
+      <p class="settings-status" id="consentStatus" aria-live="polite"></p>
+      <p class="settings-hint">
+        <a href="https://waidrop.tnkrd.com/privacy" target="_blank" rel="noopener">Privacy</a>
+        ·
+        <a href="https://waidrop.tnkrd.com/terms" target="_blank" rel="noopener">Terms</a>
+      </p>
+    </section>
+
+    <div id="appContent" hidden>
     <section class="support-card" id="supportCard">
       <div class="support-copy">
         <strong>WAiDrop is free and open-source.</strong>
-        <p>I believe software handling your private chats should be transparent. If you share that belief, support WAiDrop’s development with a coffee.</p>
+        <p>Since it handles your private conversations, I believe it should be transparent. If you value this approach, please support my work by buying me a coffee. Donations are optional and do not unlock features.</p>
       </div>
       <a
         id="donateBtn"
@@ -104,8 +122,8 @@
         <p class="settings-hint"><strong>Developer</strong></p>
         <p class="settings-hint">
           Required Dropbox app scopes: <code>account_info.read</code>,
-          <code>files.metadata.read</code> and <code>files.content.write</code>. The CLI also needs
-          <code>files.content.read</code>.
+          <code>files.metadata.read</code>, <code>files.content.write</code> and
+          <code>files.content.read</code>. The extension and CLI use the same scopes.
         </p>
         <p class="settings-hint">
           Redirect URI for the Dropbox app console:
@@ -235,14 +253,18 @@
     </div>
 
     <p class="support-line">
-      <a href="https://tnkrd.com/waidrop/privacy" target="_blank" rel="noopener">Privacy</a>
+      <a href="https://waidrop.tnkrd.com/privacy" target="_blank" rel="noopener">Privacy</a>
       ·
-      <a href="https://tnkrd.com/waidrop/terms" target="_blank" rel="noopener">Terms</a>
+      <a href="https://waidrop.tnkrd.com/terms" target="_blank" rel="noopener">Terms</a>
+      ·
+      <a href="https://waidrop.tnkrd.com/support" target="_blank" rel="noopener">Support</a>
       ·
       <a href="mailto:waidrop@tnkrd.com">waidrop@tnkrd.com</a>
     </p>
+    </div>
   </div>
   
+  <script src="../utils/consent.js"></script>
   <script src="../utils/buildFlags.js"></script>
   <script src="../utils/mediaSettings.js"></script>
   <script type="module" src="popup.js"></script>

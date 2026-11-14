@@ -27,33 +27,33 @@
  * background worker passes into this hook as the hookMain() argument: the key
  * never appears in the page, and it is never transmitted - not even over the
  * port - so a script that steals the transferred port can neither impersonate
- * this hook nor the isolated content script. After the port is open, message
+ * this hook nor the isolated content script. After the port is open, every
+ * message in both directions is MAC'd and sequence-numbered with the same
+ * session key, so a script that shares the transferred port can eavesdrop on
+ * its own page data but cannot forge config, records or media. Message
  * records, media bytes, directory data and config never cross
- * window.postMessage. The legacy window.postMessage bridge is kept only
- * for environments without MessageChannel (tests/old browsers); it is not
- * authenticated and must never be used in production Chrome.
+ * window.postMessage.
  *
  * Records contain primitives only (WA model objects cannot cross worlds).
  *
  * Tests may expose window.__waArchiveMain (serializeStoreMessage, start, stop,
- * state, media helpers) by setting window.__WAIDROP_EXPOSE_TEST_API__ = true
- * before calling hookMain(). Production never exposes it.
+ * state, media helpers) by passing { testApi: true } as hookMain()'s second
+ * argument. Production never passes it, and a page script cannot set a
+ * function argument.
  */
-export function hookMain(bridgeKey) {
+export function hookMain(bridgeKey, options) {
   'use strict';
 
-  const SOURCE = 'waidrop-main';
-  const CONFIG_SOURCE = 'waidrop-config';
-  const LEGACY_SOURCE = 'waidrop-legacy';
   // The per-session bridge key arrives as the hookMain() argument from the
   // background worker (chrome.scripting executeScript args) and exists
   // nowhere in the extension source. Only SHA-256 MACs of it ever cross the
   // MessageChannel port; the key itself is never transmitted anywhere.
   const BRIDGE_PROBE_MS = 5000;
-  const BRIDGE_LEGACY_GRACE_MS = 250;
   const BRIDGE_QUEUE_LIMIT = 500;
   const BRIDGE_QUEUE_BYTES = 64 * 1024 * 1024;
-  const TEST_MODE = window.__WAIDROP_EXPOSE_TEST_API__ === true;
+  // The test API is enabled by the test loader through this argument only.
+  // A page script cannot set it: function arguments are not page-reachable.
+  const TEST_MODE = !!(options && options.testApi === true);
 
   // Capture the current MessagePort accessors at injection time, in case
   // WhatsApp's scripts instrument the shared prototype afterwards.
@@ -144,15 +144,17 @@ export function hookMain(bridgeKey) {
     drainIdle: false,
   };
 
-  // Bridge state: probing -> port (private MessageChannel) or legacy.
+  // Bridge state: probing -> port (private MessageChannel) or failed.
   let bridgeMode = 'probing';
   let bridgePort = null;
   let bridgeProbeTimer = null;
-  let bridgeLegacyTimer = null;
-  let bridgePendingConfig = null;
   let bridgeWarned = false;
   const bridgeQueue = [];
   let bridgeQueueBytes = 0;
+  let bridgeOutSeq = 0;
+  let bridgeInSeq = 0;
+  let bridgeOutChain = Promise.resolve();
+  let bridgeInChain = Promise.resolve();
 
   const str = (value) => (typeof value === 'string' && value ? value : null);
   const num = (value) => {
@@ -207,6 +209,25 @@ export function hookMain(bridgeKey) {
     });
   }
 
+  // Canonical payload tag for post-handshake message MACs. Binary media
+  // bytes are represented by their byteLength: a stolen port cannot forge a
+  // frame without the key, and sequence numbers make replays fail. Must stay
+  // identical to bridgePayloadTag() in content/content.js.
+  function bridgePayloadTag(payload) {
+    try {
+      if (!payload || typeof payload !== 'object') return String(payload);
+      if (payload.bytes && typeof payload.bytes.byteLength === 'number') {
+        const size = payload.bytes.byteLength;
+        const rest = { ...payload };
+        delete rest.bytes;
+        return JSON.stringify(rest) + '|bytes:' + size;
+      }
+      return JSON.stringify(payload);
+    } catch (e) {
+      return 'unserializable';
+    }
+  }
+
   function widString(wid) {
     if (!wid) return null;
     try {
@@ -219,21 +240,6 @@ export function hookMain(bridgeKey) {
       /* ignore */
     }
     return null;
-  }
-
-  function postToLegacy(kind, payload, transfer) {
-    try {
-      if (transfer && transfer.length) window.postMessage({ source: SOURCE, kind, payload }, '*', transfer);
-      else window.postMessage({ source: SOURCE, kind, payload }, '*');
-      return true;
-    } catch (e) {
-      try {
-        window.postMessage({ source: SOURCE, kind, payload }, '*');
-        return true;
-      } catch (err) {
-        return false;
-      }
-    }
   }
 
   function portPost(port, message, transfer) {
@@ -259,21 +265,28 @@ export function hookMain(bridgeKey) {
 
   function postToPort(item) {
     if (!bridgePort) return false;
-    try {
-      if (item.transfer && item.transfer.length) {
-        portPost(bridgePort, { kind: item.kind, payload: item.payload }, item.transfer);
-      } else {
-        portPost(bridgePort, { kind: item.kind, payload: item.payload });
-      }
-      return true;
-    } catch (e) {
-      try {
-        portPost(bridgePort, { kind: item.kind, payload: item.payload });
-        return true;
-      } catch (err) {
-        return false;
-      }
-    }
+    // Sequence numbers and MACs are computed serially so frames arrive in
+    // order and the receiver's replay counter stays monotonic.
+    bridgeOutChain = bridgeOutChain
+      .then(() => {
+        if (bridgeMode !== 'port' || !bridgePort) return null;
+        const seq = ++bridgeOutSeq;
+        return macHex('h2c', String(seq), item.kind, bridgePayloadTag(item.payload)).then((mac) => ({
+          kind: item.kind,
+          payload: item.payload,
+          seq,
+          mac,
+        }));
+      })
+      .then((frame) => {
+        if (!frame || bridgeMode !== 'port' || !bridgePort) return;
+        if (item.transfer && item.transfer.length) portPost(bridgePort, frame, item.transfer);
+        else portPost(bridgePort, frame);
+      })
+      .catch(() => {
+        /* a dropped frame is re-sent by the caller's retry logic where it matters */
+      });
+    return true;
   }
 
   function queueBridgeMessage(kind, payload, transfer) {
@@ -290,13 +303,11 @@ export function hookMain(bridgeKey) {
     bridgeQueueBytes = 0;
     for (const item of queued) {
       if (bridgeMode === 'port' && bridgePort) postToPort(item);
-      else if (bridgeMode === 'legacy') postToLegacy(item.kind, item.payload, item.transfer);
     }
   }
 
   function post(kind, payload, transfer) {
     if (bridgeMode === 'port' && bridgePort) return postToPort({ kind, payload, transfer });
-    if (bridgeMode === 'legacy') return postToLegacy(kind, payload, transfer);
     if (bridgeMode === 'probing') return queueBridgeMessage(kind, payload, transfer);
     return false;
   }
@@ -931,7 +942,25 @@ export function hookMain(bridgeKey) {
     try {
       const data = event && event.data;
       if (!data || typeof data !== 'object') return;
-      if (data.type === 'config') applyConfig(data);
+      if (data.type !== 'config') return;
+      const seq = Number(data.seq);
+      if (!Number.isInteger(seq) || seq <= 0 || typeof data.mac !== 'string') return;
+      // Verify the config MAC before applying anything: a script that shares
+      // the transferred port cannot compute a valid MAC without the session
+      // key, and the monotonic sequence number rejects replays.
+      bridgeInChain = bridgeInChain
+        .then(() => {
+          if (seq <= bridgeInSeq) return;
+          const tag = bridgePayloadTag({ media: data.media, catchUp: data.catchUp });
+          return macHex('c2h', String(seq), 'config', tag).then((expected) => {
+            if (expected !== data.mac || seq <= bridgeInSeq) return;
+            bridgeInSeq = seq;
+            applyConfig(data);
+          });
+        })
+        .catch(() => {
+          /* never throw into the port event dispatch */
+        });
     } catch (e) {
       /* never throw into the port event dispatch */
     }
@@ -940,7 +969,7 @@ export function hookMain(bridgeKey) {
   function acceptBridgePort(port) {
     if (!port || bridgeMode === 'port') return;
     // Without a per-session key (or SubtleCrypto) no private port is ever
-    // accepted; the bridge then degrades to legacy/test mode or fails.
+    // accepted; the bridge then fails and the DOM layer keeps working.
     if (!bridgeKey || typeof crypto === 'undefined' || !crypto.subtle) return;
     const nonce = randomId();
     let settled = false;
@@ -973,14 +1002,9 @@ export function hookMain(bridgeKey) {
             clearTimeout(timeout);
             bridgePort = port;
             bridgeMode = 'port';
-            bridgePendingConfig = null;
             if (bridgeProbeTimer) {
               clearTimeout(bridgeProbeTimer);
               bridgeProbeTimer = null;
-            }
-            if (bridgeLegacyTimer) {
-              clearTimeout(bridgeLegacyTimer);
-              bridgeLegacyTimer = null;
             }
             window.removeEventListener('message', onBridgeWindowMessage);
             setPortHandler(port, handleBridgePortMessage);
@@ -1021,52 +1045,11 @@ export function hookMain(bridgeKey) {
     }
   }
 
-  function enterLegacyMode() {
-    if (bridgeMode !== 'probing') return;
-    bridgeMode = 'legacy';
-    if (bridgeProbeTimer) {
-      clearTimeout(bridgeProbeTimer);
-      bridgeProbeTimer = null;
-    }
-    if (bridgeLegacyTimer) {
-      clearTimeout(bridgeLegacyTimer);
-      bridgeLegacyTimer = null;
-    }
-    if (bridgePendingConfig) {
-      const config = bridgePendingConfig;
-      bridgePendingConfig = null;
-      applyConfig(config);
-    }
-    flushBridgeQueue();
-  }
-
   function onBridgeWindowMessage(event) {
     try {
       if (event.source && event.source !== window) return;
       if (event.origin && event.origin !== window.location.origin) return;
-      const data = event.data;
-      if (!data) return;
-
-      if (event.ports && event.ports[0]) {
-        acceptBridgePort(event.ports[0]);
-        return;
-      }
-
-      if (data.source === LEGACY_SOURCE) {
-        if (bridgeMode !== 'probing') return;
-        if (!bridgeLegacyTimer) {
-          bridgeLegacyTimer = setTimeout(() => {
-            bridgeLegacyTimer = null;
-            enterLegacyMode();
-          }, BRIDGE_LEGACY_GRACE_MS);
-        }
-        return;
-      }
-
-      if (data.source === CONFIG_SOURCE && (data.media || typeof data.catchUp === 'boolean')) {
-        if (bridgeMode === 'legacy') applyConfig(data);
-        else if (bridgeMode === 'probing') bridgePendingConfig = data;
-      }
+      if (event.ports && event.ports[0]) acceptBridgePort(event.ports[0]);
     } catch (e) {
       /* never throw into the page's message dispatch */
     }
@@ -1074,10 +1057,6 @@ export function hookMain(bridgeKey) {
 
   function initBridge() {
     window.addEventListener('message', onBridgeWindowMessage);
-    if (TEST_MODE && typeof MessageChannel !== 'function') {
-      bridgeMode = 'legacy';
-      return;
-    }
     bridgeProbeTimer = setTimeout(() => {
       bridgeProbeTimer = null;
       if (bridgeMode !== 'probing') return;
@@ -1345,7 +1324,7 @@ export function hookMain(bridgeKey) {
   }
 
   function drainCatchUpQueue() {
-    if (!state.catchUpEnabled || !state.started || (bridgeMode !== 'port' && bridgeMode !== 'legacy')) {
+    if (!state.catchUpEnabled || !state.started || bridgeMode !== 'port') {
       catchUp.queue.length = 0;
       return;
     }
@@ -1370,7 +1349,7 @@ export function hookMain(bridgeKey) {
 
   function runCatchUp() {
     if (!state.catchUpEnabled || !state.started) return;
-    if (bridgeMode !== 'port' && bridgeMode !== 'legacy') return;
+    if (bridgeMode !== 'port') return;
     collectCatchUpMessages();
     scheduleCatchUpDrain();
   }
@@ -1486,10 +1465,6 @@ export function hookMain(bridgeKey) {
     if (bridgeProbeTimer) {
       clearTimeout(bridgeProbeTimer);
       bridgeProbeTimer = null;
-    }
-    if (bridgeLegacyTimer) {
-      clearTimeout(bridgeLegacyTimer);
-      bridgeLegacyTimer = null;
     }
     if (bridgePort) {
       try {

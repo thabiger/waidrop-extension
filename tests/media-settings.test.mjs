@@ -7,6 +7,9 @@
 await import('../utils/mediaSettings.js');
 
 const { resolveMediaMode, effectiveMediaMode, legacyFromMode, activeMediaAllowed } = globalThis.WAMediaSettings;
+// Personal/dev build flags for the baseline mode checks; the public and
+// missing-flag cases are exercised below.
+globalThis.WABuildFlags = { allowActiveMediaDownloads: true };
 let failures = 0;
 const check = (name, cond, extra = '') => {
   console.log(`${cond ? 'PASS' : 'FAIL'}  ${name}${extra ? ' :: ' + extra : ''}`);
@@ -37,7 +40,9 @@ check('invalid mode fan-out defaults to passive', legacyFromMode('bogus').mediaM
 check('effective mode keeps active', effectiveMediaMode({ mediaMode: 'active' }) === 'active');
 check('effective mode keeps passive', effectiveMediaMode({ mediaMode: 'passive' }) === 'passive');
 
-check('active media allowed when no build flags exist', activeMediaAllowed() === true);
+check('personal build allows active media', activeMediaAllowed() === true);
+check('personal effective mode keeps active', effectiveMediaMode({ mediaMode: 'active' }) === 'active');
+
 globalThis.WABuildFlags = { allowActiveMediaDownloads: false };
 check('public build disables active media', activeMediaAllowed() === false);
 check(
@@ -51,8 +56,13 @@ check(
     publicActive.mediaCaptureEnabled === true &&
     publicActive.mediaActiveFetchEnabled === false
 );
+
 delete globalThis.WABuildFlags;
-check('personal build still allows active media', activeMediaAllowed() === true);
+check('missing build flags fail closed', activeMediaAllowed() === false);
+check(
+  'missing flags force effective passive',
+  effectiveMediaMode({ mediaMode: 'active' }) === 'passive'
+);
 
 console.log(failures === 0 ? '\nALL MEDIA SETTINGS CHECKS PASSED' : `\n${failures} CHECK(S) FAILED`);
 process.exit(failures === 0 ? 0 : 1);

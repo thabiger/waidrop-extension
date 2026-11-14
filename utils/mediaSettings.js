@@ -5,8 +5,10 @@
   const VALID = new Set(MODES);
 
   function activeMediaAllowed() {
+    // Fail closed: a missing or malformed flags object never enables active
+    // downloads.
     const flags = root.WABuildFlags;
-    return !flags || flags.allowActiveMediaDownloads !== false;
+    return !!flags && flags.allowActiveMediaDownloads === true;
   }
 
   function resolveMediaMode(settings) {

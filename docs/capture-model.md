@@ -1,9 +1,9 @@
-# Stealth model
+# Read-only capture model
 
-This document describes what the extension does on `web.whatsapp.com`, what a
-page script can observe, and the invariants that keep passive capture quiet.
+This document describes what the extension does on `web.whatsapp.com`, what the
+page can observe, and the invariants that keep capture read-only and low-impact.
 
-## Threat model
+## What WhatsApp Web can observe
 
 WhatsApp Web is a normal page. It can observe:
 
@@ -27,18 +27,24 @@ own page. It minimizes the page-visible surface and fails closed when it cannot.
 - no synthetic clicks or key events (`isTrusted` remains true for user actions)
 - no WhatsApp media requests in Off or Passive media mode
 
-## Private store bridge
+## Authenticated store bridge
 
 - A `MessageChannel` handshake at `document_start`. The only page-visible event
   is one empty `postMessage` carrying the transferred port.
 - A nonce + shared-key challenge authenticates the isolated content script.
 - After connection, records, media, directory data, health and config use the
   port only.
-- Page-forged `waidrop-config` and `waidrop-main` messages are ignored.
-- The legacy plain-`postMessage` bridge is used only when `MessageChannel` is
-  unavailable (tests/old browsers); it is not authenticated.
+- Every post-handshake frame is MAC'd with the per-session key and carries a
+  monotonically increasing sequence number, in both directions. A script that
+  shares the transferred port can read its own page data but cannot forge
+  records, media or config, and replays are rejected.
+- Page-forged `waidrop-config` and `waidrop-main` messages, and page-triggered
+  legacy bridge announcements, are ignored: the legacy plain-`postMessage`
+  transport has been removed.
+- The MAIN-world test API is enabled only through the `hookMain()` injection
+  argument, which page scripts cannot set.
 
-## Store hook
+## Read-only store hook
 
 - Resolves collections through `WAWebCollections`, then the separate
   `WAWebMsgCollection` / `WAWebChatCollection` / `WAWebContactCollection`
@@ -103,8 +109,8 @@ module loader. There is no public evidence WhatsApp does this.
 
 ## Verification
 
-- `npm test` includes the private bridge, passive media and stealth invariant
-  suites.
+- `npm test` includes the authenticated bridge, passive media and capture-model
+  invariant suites.
 - `tools/recon/store-resolver-probe.js` diagnoses collection module changes.
 - `tools/recon/media-probe.js` checks LRU/media-stage behavior.
 - Manual check: after reload, a `window` `message` listener should see only the

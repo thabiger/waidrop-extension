@@ -1,8 +1,8 @@
 /**
- * Stealth invariants: private bridge, forgery resistance, passive media
- * guarantees and background-side hashing/dimensions in one place.
+ * Read-only capture invariants: authenticated bridge, forgery resistance, passive
+ * media guarantees and background-side hashing/dimensions in one place.
  *
- *   node tests/stealth.test.mjs
+ *   node tests/capture-model.test.mjs
  */
 import 'fake-indexeddb/auto';
 import { readFileSync } from 'node:fs';
@@ -14,6 +14,7 @@ import { installWindowPostMessage } from './helpers/fake-message-channel.mjs';
 import { TEST_BRIDGE_KEY, startMainHook } from './helpers/main-hook-loader.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const consentSrc = readFileSync(path.join(root, 'utils', 'consent.js'), 'utf8');
 const mediaSettingsSrc = readFileSync(path.join(root, 'utils', 'mediaSettings.js'), 'utf8');
 const parserSrc = readFileSync(path.join(root, 'utils', 'messageParser.js'), 'utf8');
 const contentSrc = readFileSync(path.join(root, 'content', 'content.js'), 'utf8');
@@ -25,7 +26,7 @@ const check = (name, cond, extra = '') => {
 };
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// --- page-side stealth invariants -------------------------------------------
+// --- page-side capture invariants -------------------------------------------
 const listeners = {};
 const msgCollection = {
   on(event, cb) {
@@ -36,7 +37,7 @@ const msgCollection = {
   },
 };
 const chats = {
-  '123@c.us': { id: { _serialized: '123@c.us' }, name: 'Stealth Chat' },
+  '123@c.us': { id: { _serialized: '123@c.us' }, name: 'Capture Chat' },
 };
 const chatCollection = {
   get: (id) => chats[id] || null,
@@ -83,6 +84,7 @@ window.chrome = {
     local: {
       get: async () => ({
         settings: {},
+        waidropConsent: { version: 1, acceptedAt: Date.now() },
       }),
     },
     onChanged: { addListener() {} },
@@ -103,11 +105,11 @@ const modules = {
   },
 };
 window.require = (name) => modules[name];
-window.__WAIDROP_EXPOSE_TEST_API__ = true;
 
 const emit = (event, message) => (listeners[event] || []).forEach((cb) => cb(message));
 
 startMainHook(window);
+window.eval(consentSrc);
 window.eval(mediaSettingsSrc);
 window.eval(parserSrc);
 window.eval(contentSrc);
@@ -119,15 +121,15 @@ check('passive config applied over the port', api && api.state.mediaConfig.enabl
 
 postCalls.length = 0;
 emit('add', {
-  id: { id: 'STEALTH-TEXT', fromMe: false, remote: { _serialized: '123@c.us' } },
+  id: { id: 'CAPTURE-TEXT', fromMe: false, remote: { _serialized: '123@c.us' } },
   t: Math.floor(Date.now() / 1000),
   type: 'chat',
-  body: 'stealth text',
+  body: 'capture text',
 });
 await sleep(250);
 const batches = sent.filter((message) => message.type === 'MESSAGE_BATCH');
 const records = batches.flatMap((batch) => batch.records || []);
-check('store record reaches the background', records.some((record) => record.msgId === 'STEALTH-TEXT'));
+check('store record reaches the background', records.some((record) => record.msgId === 'CAPTURE-TEXT'));
 check('store record uses the private port', postCalls.length === 0, `${postCalls.length} postMessage call(s)`);
 
 window.postMessage({ source: 'waidrop-config', media: { activeFetch: true } }, '*');
@@ -138,7 +140,7 @@ window.postMessage(
   {
     source: 'waidrop-main',
     kind: 'message',
-    payload: { v: 1, msgId: 'STEALTH-FORGED', chatId: '123@c.us', direction: 'in', text: 'forged', type: 'chat', source: 'store' },
+    payload: { v: 1, msgId: 'CAPTURE-FORGED', chatId: '123@c.us', direction: 'in', text: 'forged', type: 'chat', source: 'store' },
   },
   '*'
 );
@@ -146,17 +148,17 @@ await sleep(150);
 const forged = sent
   .filter((message) => message.type === 'MESSAGE_BATCH')
   .flatMap((batch) => batch.records || [])
-  .find((record) => record.msgId === 'STEALTH-FORGED');
+  .find((record) => record.msgId === 'CAPTURE-FORGED');
 check('page-forged record is ignored', !forged);
 
 emit('add', {
-  id: { id: 'STEALTH-FETCHING', fromMe: false, remote: { _serialized: '123@c.us' } },
+  id: { id: 'CAPTURE-FETCHING', fromMe: false, remote: { _serialized: '123@c.us' } },
   t: Math.floor(Date.now() / 1000),
   type: 'image',
   body: 'caption',
   size: 26,
   mediaData: { mediaStage: 'FETCHING', size: 26, mediaBlob: null },
-  mediaObject: { filehash: 'stealth-fetching' },
+  mediaObject: { filehash: 'capture-fetching' },
   downloadMedia: async () => {
     downloads++;
   },
@@ -166,20 +168,20 @@ check('passive FETCHING makes no download', downloads === 0, String(downloads));
 check('passive FETCHING does not read the LRU store', lruCalls === 0, String(lruCalls));
 check(
   'passive FETCHING records not_downloaded',
-  sent.some((message) => message.type === 'MEDIA_STATUS' && message.msgId === 'STEALTH-FETCHING' && message.status === 'not_downloaded')
+  sent.some((message) => message.type === 'MEDIA_STATUS' && message.msgId === 'CAPTURE-FETCHING' && message.status === 'not_downloaded')
 );
 check('passive FETCHING relays no media bytes', mediaRelay.length === 0, JSON.stringify(mediaRelay.map((message) => message.type)));
 
 api.setMediaConfig({ activeFetch: true });
 lruDelay = 150;
 emit('add', {
-  id: { id: 'STEALTH-SWITCH', fromMe: false, remote: { _serialized: '123@c.us' } },
+  id: { id: 'CAPTURE-SWITCH', fromMe: false, remote: { _serialized: '123@c.us' } },
   t: Math.floor(Date.now() / 1000),
   type: 'image',
   body: 'switch',
   size: 26,
   mediaData: { mediaStage: 'RESOLVED', size: 26, mediaBlob: null },
-  mediaObject: { filehash: 'stealth-switch' },
+  mediaObject: { filehash: 'capture-switch' },
   downloadMedia: async () => {
     downloads++;
   },
@@ -190,7 +192,7 @@ await sleep(300);
 check('active -> passive switch cancels the queued download', downloads === 0, String(downloads));
 check(
   'active -> passive switch records not_downloaded',
-  sent.some((message) => message.type === 'MEDIA_STATUS' && message.msgId === 'STEALTH-SWITCH' && message.status === 'not_downloaded')
+  sent.some((message) => message.type === 'MEDIA_STATUS' && message.msgId === 'CAPTURE-SWITCH' && message.status === 'not_downloaded')
 );
 lruDelay = 0;
 
@@ -202,6 +204,7 @@ const storage = {
   settings: { encryptionKey: 'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=', uploadEnabled: false },
   dropboxAuth: null,
   installedAt: 0,
+  waidropConsent: { version: 1, acceptedAt: Date.now() },
 };
 globalThis.chrome = {
   storage: {
@@ -221,7 +224,7 @@ globalThis.chrome = {
   },
   runtime: {
     onMessage: { addListener() {} },
-    onConnect: { addListener(fn) { globalThis.__stealthConnect = fn; } },
+    onConnect: { addListener(fn) { globalThis.__captureConnect = fn; } },
     onInstalled: { addListener() {} },
   },
   alarms: {
@@ -239,9 +242,9 @@ await idb.clearAll();
 await idb.putRecords([
   {
     v: 1,
-    msgId: 'STEALTH-MEDIA',
+    msgId: 'CAPTURE-MEDIA',
     chatId: '123@c.us',
-    chatName: 'Stealth Chat',
+    chatName: 'Capture Chat',
     isGroup: false,
     direction: 'in',
     senderName: 'Jane',
@@ -255,7 +258,7 @@ await idb.putRecords([
 
 await import('../background/background.js');
 await sleep(100);
-check('background media port registered', typeof globalThis.__stealthConnect === 'function');
+check('background media port registered', typeof globalThis.__captureConnect === 'function');
 
 const relayMessages = [];
 const relayPort = {
@@ -264,9 +267,9 @@ const relayPort = {
   onDisconnect: { addListener() {} },
   postMessage(message) { this.acked = message; },
 };
-globalThis.__stealthConnect(relayPort);
+globalThis.__captureConnect(relayPort);
 
-const mediaBytes = new TextEncoder().encode('stealth-media-bytes');
+const mediaBytes = new TextEncoder().encode('capture-media-bytes');
 const mediaSha = [...new Uint8Array(await webcrypto.subtle.digest('SHA-256', mediaBytes))]
   .map((byte) => byte.toString(16).padStart(2, '0'))
   .join('');
@@ -276,8 +279,8 @@ globalThis.createImageBitmap = async () => ({ width: 800, height: 600, close() {
 
 relayMessages[0]({
   type: 'MEDIA_BEGIN',
-  id: 'stealth-session',
-  msgId: 'STEALTH-MEDIA',
+  id: 'capture-session',
+  msgId: 'CAPTURE-MEDIA',
   chatId: '123@c.us',
   kind: 'image',
   mime: 'image/jpeg',
@@ -285,11 +288,11 @@ relayMessages[0]({
   size: mediaBytes.length,
   totalChars: mediaBase64.length,
 });
-relayMessages[0]({ type: 'MEDIA_CHUNK', id: 'stealth-session', data: mediaBase64 });
-relayMessages[0]({ type: 'MEDIA_END', id: 'stealth-session' });
+relayMessages[0]({ type: 'MEDIA_CHUNK', id: 'capture-session', data: mediaBase64 });
+relayMessages[0]({ type: 'MEDIA_END', id: 'capture-session' });
 await sleep(300);
 
-const stored = await idb.getMedia('STEALTH-MEDIA');
+const stored = await idb.getMedia('CAPTURE-MEDIA');
 check('background computes sha256', stored && stored.sha256 === mediaSha, stored && stored.sha256);
 check(
   'background computes dimensions',
@@ -301,5 +304,5 @@ check('background acknowledges media', relayPort.acked && relayPort.acked.type =
 if (originalCreateImageBitmap === undefined) delete globalThis.createImageBitmap;
 else globalThis.createImageBitmap = originalCreateImageBitmap;
 
-console.log(failures === 0 ? '\nALL STEALTH CHECKS PASSED' : `\n${failures} CHECK(S) FAILED`);
+console.log(failures === 0 ? '\nALL CAPTURE-MODEL CHECKS PASSED' : `\n${failures} CHECK(S) FAILED`);
 process.exit(failures === 0 ? 0 : 1);

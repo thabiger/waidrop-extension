@@ -12,11 +12,20 @@
  * requests from the background worker (BRIDGE_INIT): the key never appears
  * in the page and never crosses window.postMessage - not even the port
  * carries it, so a page script that steals the transferred port cannot
- * impersonate either side. The legacy plain-string bridge is used only when
- * MessageChannel is unavailable (jsdom/old browsers).
+ * impersonate either side. Every post-handshake frame is additionally MAC'd
+ * and sequence-numbered with that key, so the port thief cannot forge
+ * records, media or config. Without MessageChannel the bridge fails and DOM
+ * capture keeps working.
  */
-(function () {
+(async function () {
   'use strict';
+
+  const consent = window.WAConsent;
+  if (!consent) {
+    console.warn('[WAiDrop] consent module not loaded - content script disabled');
+    return;
+  }
+  if (!(await consent.waitForConsent())) return;
 
   const DEBUG = false;
   const SWEEP_DEBOUNCE_MS = 250;
@@ -31,9 +40,6 @@
   const FLUSH_ACK_TIMEOUT_MS = 15000;
   const FLUSH_AT = 25;
 
-  const MAIN_SOURCE = 'waidrop-main';
-  const CONFIG_SOURCE = 'waidrop-config';
-  const LEGACY_SOURCE = 'waidrop-legacy';
   // The bridge key is a per-session random secret minted by the background
   // worker (BRIDGE_INIT) and injected into the MAIN-world hook via
   // chrome.scripting args. It is used only inside SHA-256 MACs, so it is
@@ -75,6 +81,10 @@
   let bridgeMode = 'probing';
   let bridgePort = null;
   let pendingConfig = null;
+  let bridgeSessionKey = null;
+  let bridgeInSeq = 0;
+  let bridgeOutSeq = 0;
+  let bridgeInChain = Promise.resolve();
 
   // --- bridge authentication ----------------------------------------------
 
@@ -118,6 +128,25 @@
     });
   }
 
+  // Canonical payload tag for post-handshake message MACs. Binary media
+  // bytes are represented by their byteLength: a stolen port cannot forge a
+  // frame without the key, and sequence numbers make replays fail. Must stay
+  // identical to bridgePayloadTag() in background/inject-main.js.
+  function bridgePayloadTag(payload) {
+    try {
+      if (!payload || typeof payload !== 'object') return String(payload);
+      if (payload.bytes && typeof payload.bytes.byteLength === 'number') {
+        const size = payload.bytes.byteLength;
+        const rest = { ...payload };
+        delete rest.bytes;
+        return JSON.stringify(rest) + '|bytes:' + size;
+      }
+      return JSON.stringify(payload);
+    } catch (e) {
+      return 'unserializable';
+    }
+  }
+
   const MEDIA_CHUNK_CHARS = 256 * 1024;
   let mediaPort = null;
   let mediaSeq = 0;
@@ -134,17 +163,19 @@
     return 'passive';
   }
 
+  // Fail closed: when the build-flag object is missing or malformed the
+  // stricter capability is disabled, never silently enabled.
   function allowViewOnceCapture() {
-    const flags = window.WABuildFlags || {};
-    return flags.allowViewOnceCapture !== false;
+    const flags = window.WABuildFlags;
+    return !!flags && flags.allowViewOnceCapture === true;
   }
 
   function allowActiveMediaDownloads() {
     if (window.WAMediaSettings && typeof window.WAMediaSettings.activeMediaAllowed === 'function') {
       return window.WAMediaSettings.activeMediaAllowed();
     }
-    const flags = window.WABuildFlags || {};
-    return flags.allowActiveMediaDownloads !== false;
+    const flags = window.WABuildFlags;
+    return !!flags && flags.allowActiveMediaDownloads === true;
   }
 
   function mainConfigFrom(settings) {
@@ -563,48 +594,49 @@
     scheduleFlush(STORE_FLUSH_DEBOUNCE_MS);
   }
 
-  function onLegacyWindowMessage(event) {
-    if (event.source && event.source !== window) return;
-    const data = event.data;
-    if (!data || data.source !== MAIN_SOURCE) return;
-    handleMainMessage(data);
-  }
-
   function handleBridgePortMessage(event) {
     const data = event && event.data;
     if (!data || typeof data !== 'object') return;
-    handleMainMessage(data);
+    if (typeof data.kind !== 'string' || !Number.isInteger(data.seq) || typeof data.mac !== 'string') return;
+    const frame = data;
+    // Frames are verified and processed strictly in arrival order so the
+    // replay counter stays monotonic even while MAC digests are in flight.
+    bridgeInChain = bridgeInChain
+      .then(async () => {
+        if (bridgeMode !== 'port' || !bridgeSessionKey) return;
+        if (frame.seq <= bridgeInSeq) return;
+        const expected = await macHex(
+          'h2c',
+          bridgeSessionKey,
+          String(frame.seq),
+          frame.kind,
+          bridgePayloadTag(frame.payload)
+        );
+        if (expected !== frame.mac || frame.seq <= bridgeInSeq) return;
+        bridgeInSeq = frame.seq;
+        handleMainMessage(frame);
+      })
+      .catch(() => {});
   }
 
   function sendConfig(config) {
     if (!config) return;
-    if (bridgeMode === 'port' && bridgePort) {
-      try {
-        bridgePort.postMessage({ type: 'config', ...config });
-        return;
-      } catch (e) {
-        /* fall through to the pending queue */
-      }
-    }
-    if (bridgeMode === 'legacy') {
-      try {
-        window.postMessage({ source: CONFIG_SOURCE, ...config }, window.location.origin);
-        return;
-      } catch (e) {
-        /* ignore */
-      }
+    if (bridgeMode === 'port' && bridgePort && bridgeSessionKey) {
+      const seq = ++bridgeOutSeq;
+      const frame = { type: 'config', media: config.media, catchUp: config.catchUp, seq };
+      macHex('c2h', bridgeSessionKey, String(seq), 'config', bridgePayloadTag({ media: frame.media, catchUp: frame.catchUp }))
+        .then((mac) => {
+          if (bridgeMode !== 'port' || !bridgePort) return;
+          try {
+            bridgePort.postMessage({ ...frame, mac });
+          } catch (e) {
+            /* the hook keeps its last verified config */
+          }
+        })
+        .catch(() => {});
+      return;
     }
     pendingConfig = config;
-  }
-
-  function enterLegacyBridge() {
-    bridgeMode = 'legacy';
-    window.addEventListener('message', onLegacyWindowMessage);
-    try {
-      window.postMessage({ source: LEGACY_SOURCE }, window.location.origin);
-    } catch (e) {
-      /* ignore */
-    }
   }
 
   function markBridgeFailed(reason) {
@@ -662,11 +694,11 @@
   async function initBridge() {
     try {
       if (typeof MessageChannel !== 'function') {
-        enterLegacyBridge();
+        markBridgeFailed('message-channel-unavailable');
         return;
       }
       if (typeof crypto === 'undefined' || !crypto.subtle || !crypto.getRandomValues) {
-        enterLegacyBridge();
+        markBridgeFailed('subtle-crypto-unavailable');
         return;
       }
       let result = await requestBridgeKey();
@@ -698,7 +730,7 @@
       try {
         channel = new MessageChannel();
       } catch (e) {
-        enterLegacyBridge();
+        markBridgeFailed('message-channel-unavailable');
         return;
       }
 
@@ -748,6 +780,7 @@
               clearTimeout(retryTimer);
               bridgePort = port;
               bridgeMode = 'port';
+              bridgeSessionKey = bridgeKey;
               port.onmessage = handleBridgePortMessage;
               if (pendingConfig) {
                 const config = pendingConfig;

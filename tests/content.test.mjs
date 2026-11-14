@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { JSDOM } from 'jsdom';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const consentSrc = readFileSync(path.join(root, 'utils', 'consent.js'), 'utf8');
 const mediaSettingsSrc = readFileSync(path.join(root, 'utils', 'mediaSettings.js'), 'utf8');
 const parserSrc = readFileSync(path.join(root, 'utils', 'messageParser.js'), 'utf8');
 const contentSrc = readFileSync(path.join(root, 'content', 'content.js'), 'utf8');
@@ -70,6 +71,15 @@ window.chrome = {
       sent.push(message);
       if (callback) callback({ status: 'stored', stats: {} });
     },
+    onMessage: { addListener() {} },
+  },
+  storage: {
+    local: {
+      async get() {
+        return { waidropConsent: { version: 1, acceptedAt: Date.now() }, settings: {} };
+      },
+    },
+    onChanged: { addListener() {} },
   },
 };
 
@@ -79,6 +89,7 @@ const check = (name, cond, extra = '') => {
   if (!cond) failures++;
 };
 
+window.eval(consentSrc);
 window.eval(mediaSettingsSrc);
 window.eval(parserSrc);
 window.eval(contentSrc);
@@ -169,9 +180,20 @@ check('records are plain serializable objects', (() => {
         }
         if (callback) callback({ status: 'stored', stats: {} });
       },
+      onMessage: { addListener() {} },
+    },
+    storage: {
+      local: {
+        async get() {
+          return { waidropConsent: { version: 1, acceptedAt: Date.now() }, settings: {} };
+        },
+      },
+      onChanged: { addListener() {} },
     },
   };
 
+  retryWindow.eval(consentSrc);
+  retryWindow.eval(mediaSettingsSrc);
   retryWindow.eval(parserSrc);
   retryWindow.eval(contentSrc);
   await new Promise((resolve) => setTimeout(resolve, 2800));
@@ -184,6 +206,44 @@ check('records are plain serializable objects', (() => {
     JSON.stringify(retryRecords.map((r) => r.msgId))
   );
   retryDom.window.close();
+}
+
+// --- first-run consent gate: no capture before consent ----------------------
+{
+  const gateDom = new JSDOM(html, {
+    url: 'https://web.whatsapp.com/',
+    runScripts: 'outside-only',
+    pretendToBeVisual: true,
+  });
+  const gateWindow = gateDom.window;
+  const gated = [];
+  gateWindow.chrome = {
+    runtime: {
+      lastError: undefined,
+      sendMessage(message, callback) {
+        gated.push(message);
+        if (callback) callback({ status: 'stored', stats: {} });
+      },
+      onMessage: { addListener() {} },
+    },
+    storage: {
+      local: {
+        async get() {
+          return {};
+        },
+      },
+      onChanged: { addListener() {} },
+    },
+  };
+
+  gateWindow.eval(consentSrc);
+  gateWindow.eval(mediaSettingsSrc);
+  gateWindow.eval(parserSrc);
+  gateWindow.eval(contentSrc);
+  await new Promise((resolve) => setTimeout(resolve, 500));
+
+  check('no consent: content script stays idle', gated.length === 0, JSON.stringify(gated.map((m) => m.type)));
+  gateDom.window.close();
 }
 
 console.log(failures === 0 ? '\nALL CONTENT CHECKS PASSED' : `\n${failures} CHECK(S) FAILED`);

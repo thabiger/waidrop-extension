@@ -11,9 +11,12 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { JSDOM } from 'jsdom';
-import { startMainHook } from './helpers/main-hook-loader.mjs';
+import { webcrypto } from 'node:crypto';
+import { TEST_BRIDGE_KEY, startMainHook } from './helpers/main-hook-loader.mjs';
+import { installWindowPostMessage } from './helpers/fake-message-channel.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const consentSrc = readFileSync(path.join(root, 'utils', 'consent.js'), 'utf8');
 const mediaSettingsSrc = readFileSync(path.join(root, 'utils', 'mediaSettings.js'), 'utf8');
 const parserSrc = readFileSync(path.join(root, 'utils', 'messageParser.js'), 'utf8');
 const contentSrc = readFileSync(path.join(root, 'content', 'content.js'), 'utf8');
@@ -52,8 +55,21 @@ window.chrome = {
     lastError: undefined,
     sendMessage(message, callback) {
       sent.push(message);
+      if (message && message.type === 'BRIDGE_INIT') {
+        if (callback) callback({ status: 'ok', bridgeKey: TEST_BRIDGE_KEY });
+        return;
+      }
       if (callback) callback({ status: 'accepted' });
     },
+    onMessage: { addListener() {} },
+  },
+  storage: {
+    local: {
+      async get() {
+        return { waidropConsent: { version: 1, acceptedAt: Date.now() }, settings: {} };
+      },
+    },
+    onChanged: { addListener() {} },
   },
 };
 
@@ -81,9 +97,12 @@ const emit = (msg) => (listeners['add'] || []).forEach((cb) => cb(msg));
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-window.__WAIDROP_EXPOSE_TEST_API__ = true;
-// Plain jsdom: no MessageChannel, so both sides take the legacy bridge.
+// jsdom has no MessageChannel: install the shim so both sides exercise the
+// same authenticated port path production Chrome uses.
+Object.defineProperty(window, 'crypto', { value: webcrypto, configurable: true });
+installWindowPostMessage(window);
 startMainHook(window);
+window.eval(consentSrc);
 window.eval(mediaSettingsSrc);
 window.eval(parserSrc);
 window.eval(contentSrc);

@@ -1,12 +1,14 @@
 /**
  * Mode-aware archive codec.
  *
- * Two archive modes share the same account layout:
- *   plaintext - objects are UTF-8 JSON/NDJSON or raw media bytes
- *   encrypted - the existing WAAR/WAMR AES-256-GCM envelopes
+ * The shipped extension always writes encrypted archives. The retired
+ * plaintext mode is still parseable so a pre-existing Dropbox archive can be
+ * recognized and refused; no write path accepts it.
  *
- * Chat/media path hashes are keyed HMACs in encrypted mode and plain SHA-256
- * truncations in plaintext mode. `_format.json` is authoritative for the mode.
+ *   encrypted - WAAR/WAMR AES-256-GCM envelopes with keyed HMAC paths
+ *   plaintext - legacy UTF-8 JSON/NDJSON or raw media bytes (read-only)
+ *
+ * `_format.json` is authoritative for the mode of an existing remote archive.
  */
 import {
   chatHash,
@@ -15,13 +17,25 @@ import {
   decryptObject,
   encryptMedia,
   decryptMedia,
-  sha256Hex,
 } from './crypto.js';
 
-export const ARCHIVE_MODES = ['plaintext', 'encrypted'];
+export const ARCHIVE_MODES = ['encrypted', 'plaintext'];
+export const READ_ONLY_ARCHIVE_MODES = ['plaintext'];
 
+/** Parse a remote format marker. Returns null for unknown values. */
+export function parseArchiveMode(value) {
+  return value === 'encrypted' || value === 'plaintext' ? value : null;
+}
+
+/**
+ * Normalize a mode for a write path. The retired plaintext mode (and any
+ * unknown value) fails closed: archives are always encrypted.
+ */
 export function normalizeArchiveMode(value) {
-  return value === 'encrypted' ? 'encrypted' : 'plaintext';
+  if (value !== 'encrypted') {
+    throw new Error(`unsupported archive write mode: ${String(value)} (archives are always encrypted)`);
+  }
+  return 'encrypted';
 }
 
 export function isEncryptedMode(value) {
@@ -29,46 +43,48 @@ export function isEncryptedMode(value) {
 }
 
 export function objectExtension(mode) {
-  return isEncryptedMode(mode) ? '.enc' : '.ndjson';
+  normalizeArchiveMode(mode);
+  return '.enc';
 }
 
 export function chatObjectExtension(mode) {
-  return isEncryptedMode(mode) ? '.enc' : '.json';
+  normalizeArchiveMode(mode);
+  return '.enc';
 }
 
 export function mediaObjectExtension(mode) {
-  return isEncryptedMode(mode) ? '.enc' : '.bin';
+  normalizeArchiveMode(mode);
+  return '.enc';
 }
 
 export async function chatHashForMode(mode, keys, chatId) {
-  if (isEncryptedMode(mode)) return chatHash(keys, chatId);
-  return (await sha256Hex(new TextEncoder().encode(String(chatId)))).slice(0, 16);
+  normalizeArchiveMode(mode);
+  return chatHash(keys, chatId);
 }
 
 export async function mediaHashForMode(mode, keys, msgId) {
-  if (isEncryptedMode(mode)) return mediaHash(keys, msgId);
-  return (await sha256Hex(new TextEncoder().encode(`media:${String(msgId)}`))).slice(0, 32);
+  normalizeArchiveMode(mode);
+  return mediaHash(keys, msgId);
 }
 
 export async function encodeObject(mode, keys, plaintext) {
-  if (isEncryptedMode(mode)) return encryptObject(keys, plaintext);
-  const text = typeof plaintext === 'string' ? plaintext : new TextDecoder().decode(plaintext);
-  return new TextEncoder().encode(text);
+  normalizeArchiveMode(mode);
+  return encryptObject(keys, plaintext);
 }
 
 export async function decodeObject(mode, keys, bytes) {
-  if (isEncryptedMode(mode)) return decryptObject(keys, bytes);
+  if (parseArchiveMode(mode) !== 'plaintext') return decryptObject(keys, bytes);
   return new TextDecoder().decode(bytes);
 }
 
 export async function encodeMedia(mode, keys, relativePath, bytes) {
+  normalizeArchiveMode(mode);
   const data = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
-  if (isEncryptedMode(mode)) return encryptMedia(keys, relativePath, data);
-  return data;
+  return encryptMedia(keys, relativePath, data);
 }
 
 export async function decodeMedia(mode, keys, relativePath, bytes) {
   const data = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
-  if (isEncryptedMode(mode)) return decryptMedia(keys, relativePath, data);
+  if (parseArchiveMode(mode) !== 'plaintext') return decryptMedia(keys, relativePath, data);
   return data;
 }

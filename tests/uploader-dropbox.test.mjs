@@ -98,6 +98,21 @@ const check = (name, cond, extra = '') => {
   if (!cond) failures++;
 };
 
+check('alias: valid alias preserved', uploader.resolveAccountAlias({ accountAlias: 'second_2' }) === 'second_2');
+check('alias: traversal rejected', uploader.resolveAccountAlias({ accountAlias: '../evil' }) === 'primary');
+check('alias: slash rejected', uploader.resolveAccountAlias({ accountAlias: 'a/b' }) === 'primary');
+check('alias: overlong rejected', uploader.resolveAccountAlias({ accountAlias: 'a'.repeat(33) }) === 'primary');
+check('alias: empty falls back', uploader.resolveAccountAlias({}) === 'primary');
+
+{
+  const fpKeys = await deriveKeys(KEY);
+  const fp = await uploader.chatIndexFingerprint(fpKeys, [
+    { chatId: '123@c.us', chatName: 'Jane', chatPhone: '49171234567' },
+  ]);
+  check('fingerprint: keyed hex digest', /^[0-9a-f]{64}$/.test(fp), fp);
+  check('fingerprint: no raw chat data', !fp.includes('Jane') && !fp.includes('123@'));
+}
+
 const T17 = new Date(2026, 9, 17, 10, 0, 0).getTime();
 const T17B = new Date(2026, 9, 17, 10, 5, 0).getTime();
 

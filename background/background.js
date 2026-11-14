@@ -9,6 +9,7 @@
  * Also performs a one-time migration of records captured by the pre-M2
  * version from chrome.storage.local into IndexedDB.
  */
+import '../utils/consent.js';
 import {
   putRecords,
   putMedia,
@@ -30,7 +31,7 @@ import { ensureInstalledAt, getInstalledAt } from './installInfo.js';
 import { PRE_INSTALL_REASON } from './archivePolicy.js';
 import { runOffloadSweep } from './offload.js';
 import { runMediaRepair } from './mediaRepair.js';
-import { sanitizeRecord, sanitizeChatEntry, sanitizeMediaMeta } from './recordSanity.js';
+import { sanitizeRecord, sanitizeChatEntry, sanitizeMediaMeta, sanitizeMediaStatus } from './recordSanity.js';
 // The MAIN-world store hook. No longer a manifest content script: it is
 // injected per page load by the BRIDGE_INIT handler below, which passes a
 // fresh per-session bridge key as a chrome.scripting argument. That argument
@@ -39,6 +40,7 @@ import { sanitizeRecord, sanitizeChatEntry, sanitizeMediaMeta } from './recordSa
 import { hookMain } from './inject-main.js';
 
 const DEBUG = false;
+const Consent = globalThis.WAConsent;
 const UPLOAD_ALARM = 'waidrop-upload';
 
 const OFFLOAD_ALARM = 'waidrop-offload';
@@ -114,7 +116,13 @@ async function reconcilePreInstall(settings) {
 }
 
 function enqueueWrite(task) {
-  const result = writeQueue.then(() => ready).then(task);
+  const result = writeQueue
+    .then(() => ready)
+    .then(() => Consent.hasConsent())
+    .then((granted) => {
+      if (!granted) return { skipped: 'consent-required' };
+      return task();
+    });
   writeQueue = result.catch((e) => {
     console.warn('[WAiDrop] write failed:', errorMessage(e));
   });
@@ -124,7 +132,11 @@ function enqueueWrite(task) {
 function enqueueUpload(options = {}) {
   const result = uploadQueue
     .then(() => ready)
-    .then(() => runUpload({ log: logActivity, manual: options.manual === true }))
+    .then(() => Consent.hasConsent())
+    .then((granted) => {
+      if (!granted) return { skipped: 'consent-required' };
+      return runUpload({ log: logActivity, manual: options.manual === true });
+    })
     .then((stats) => {
       if (stats && stats.mediaUploaded) scheduleRepair();
       if (stats && stats.uploaded) scheduleOffload();
@@ -141,7 +153,8 @@ function enqueueUpload(options = {}) {
 function enqueueMaintenance(task) {
   const result = maintenanceQueue
     .then(() => ready)
-    .then(task);
+    .then(() => Consent.hasConsent())
+    .then((granted) => (granted ? task() : { skipped: 'consent-required' }));
   maintenanceQueue = result.catch((e) => {
     const message = errorMessage(e);
     console.warn('[WAiDrop] maintenance failed:', message);
@@ -337,16 +350,55 @@ function ensureUploadAlarm() {
   ensureAlarm(REPAIR_ALARM, 15);
 }
 
+async function refreshConsentBadge() {
+  if (!chrome.action || !chrome.action.setBadgeText) return;
+  try {
+    const granted = await Consent.hasConsent();
+    await chrome.action.setBadgeText({ text: granted ? '' : '!' });
+    if (!granted && chrome.action.setBadgeBackgroundColor) {
+      await chrome.action.setBadgeBackgroundColor({ color: '#B3261E' });
+    }
+  } catch (e) {
+    /* action API unavailable */
+  }
+}
+
+async function broadcastConsentAccepted() {
+  await refreshConsentBadge();
+  if (!chrome.tabs || !chrome.tabs.query || !chrome.tabs.sendMessage) return;
+  try {
+    const tabs = await chrome.tabs.query({ url: 'https://web.whatsapp.com/*' });
+    for (const tab of tabs) {
+      if (!tab || typeof tab.id !== 'number') continue;
+      try {
+        await chrome.tabs.sendMessage(tab.id, { type: Consent.ACCEPT_MESSAGE });
+      } catch (e) {
+        /* tab closed or not ready */
+      }
+    }
+  } catch (e) {
+    /* tabs API unavailable */
+  }
+}
+
 ensureUploadAlarm();
+refreshConsentBadge().catch(() => {});
 
 if (chrome.runtime.onInstalled) {
   chrome.runtime.onInstalled.addListener((details) => {
     ensureUploadAlarm();
+    refreshConsentBadge().catch(() => {});
     (async () => {
       if (details && details.reason === 'install') await ensureInstalledAt(Date.now());
       await ensureMasterKey();
       await refreshLocalCodec();
     })().catch(() => {});
+  });
+}
+
+if (chrome.runtime.onStartup) {
+  chrome.runtime.onStartup.addListener(() => {
+    refreshConsentBadge().catch(() => {});
   });
 }
 
@@ -423,7 +475,9 @@ const ready = (async () => {
     if (!migratedFlag) {
       const result = await chrome.storage.local.get(['messages', 'lastSync']);
       const legacy = Array.isArray(result.messages) ? result.messages : [];
-      const valid = legacy.filter((r) => r && r.msgId);
+      // Old records come from the same untrusted page pipeline: enforce the
+      // current field whitelist before they reach IndexedDB.
+      const valid = legacy.map((record) => sanitizeRecord(record)).filter(Boolean);
       const stats = await putRecords(valid);
       await setMeta('migratedFromStorageLocal', { at: Date.now(), count: valid.length });
       if (result.messages !== undefined || result.lastSync !== undefined) {
@@ -469,34 +523,54 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sendResponse({ status: 'unavailable' });
         return false;
       }
-      try {
-        const bridgeKey = generateBridgeKey();
-        chrome.scripting.executeScript(
-          {
-            target: { tabId },
-            world: 'MAIN',
-            injectImmediately: true,
-            func: hookMain,
-            args: [bridgeKey],
-          },
-          () => {
-            if (chrome.runtime.lastError) {
-              sendResponse({
-                status: 'error',
-                error: chrome.runtime.lastError.message || 'MAIN-world injection failed',
-              });
-              return;
-            }
-            // Same key on both ends of the bridge; it is never written to
-            // storage and never crosses the page.
-            sendResponse({ status: 'ok', bridgeKey });
+      Consent.hasConsent()
+        .then((granted) => {
+          if (!granted) {
+            sendResponse({ status: 'consent-required' });
+            return;
           }
-        );
-        return true;
-      } catch (e) {
-        sendResponse({ status: 'error', error: errorMessage(e) });
-        return false;
-      }
+          try {
+            const bridgeKey = generateBridgeKey();
+            chrome.scripting.executeScript(
+              {
+                target: { tabId },
+                world: 'MAIN',
+                injectImmediately: true,
+                func: hookMain,
+                args: [bridgeKey],
+              },
+              () => {
+                if (chrome.runtime.lastError) {
+                  sendResponse({
+                    status: 'error',
+                    error: chrome.runtime.lastError.message || 'MAIN-world injection failed',
+                  });
+                  return;
+                }
+                // Same key on both ends of the bridge; it is never written to
+                // storage and never crosses the page.
+                sendResponse({ status: 'ok', bridgeKey });
+              }
+            );
+          } catch (e) {
+            sendResponse({ status: 'error', error: errorMessage(e) });
+          }
+        })
+        .catch((e) => sendResponse({ status: 'error', error: errorMessage(e) }));
+      return true;
+    }
+
+    case 'CONSENT_ACCEPTED': {
+      Consent.hasConsent()
+        .then((granted) => {
+          if (!granted) {
+            sendResponse({ status: 'not-granted' });
+            return;
+          }
+          return broadcastConsentAccepted().then(() => sendResponse({ status: 'ok' }));
+        })
+        .catch((e) => sendResponse({ status: 'error', error: errorMessage(e) }));
+      return true;
     }
 
     case 'MESSAGE_BATCH': {
@@ -549,24 +623,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
 
     case 'MEDIA_STATUS': {
-      const msgId = typeof message.msgId === 'string' && message.msgId.length <= 256 ? message.msgId : null;
-      if (!msgId) {
+      const report = sanitizeMediaStatus(message);
+      if (!report) {
         sendResponse({ status: 'ignored' });
         return false;
       }
       enqueueWrite(async () => {
-        const status = typeof message.status === 'string' && message.status.length <= 32 ? message.status : 'failed';
-        const lastError = typeof message.error === 'string' ? message.error.slice(0, 256) : null;
-        const updated = await setMediaStatus(msgId, status, {
-          lastError,
+        const updated = await setMediaStatus(report.msgId, report.status, {
+          lastError: report.lastError,
         });
         if (!updated) {
           await putMedia({
-            msgId,
-            chatId: message.chatId || null,
-            status,
+            msgId: report.msgId,
+            chatId: report.chatId || null,
+            status: report.status,
             byteLength: 0,
-            lastError,
+            lastError: report.lastError,
             capturedAt: Date.now(),
           });
         }
@@ -610,8 +682,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       probeConnection()
         .then((result) => {
           if (result && result.ok) {
-            const who = result.accountName || result.email || 'Dropbox account';
-            logActivity('success', `Dropbox connection OK — ${who}.`);
+            // Do not persist the account name/email in the activity log.
+            logActivity('success', 'Dropbox connection OK.');
           } else {
             logActivity('error', `Dropbox connection failed — ${(result && result.error) || 'unknown error'}`);
           }
@@ -630,9 +702,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       (async () => {
         const settings = await getSettings();
         const auth = await connectDropbox(settings.dropboxAppKey);
-        const who = auth.accountName || auth.email || auth.accountId || 'account';
-        console.log('[WAiDrop] Dropbox connected:', who);
-        logActivity('success', `Dropbox connected as ${who}.`);
+        console.log('[WAiDrop] Dropbox connected');
+        // The popup shows the account for the current session; the persisted
+        // activity log never carries the account name or email.
+        logActivity('success', 'Dropbox connected.');
         sendResponse({ ok: true, accountName: auth.accountName || null, email: auth.email || null });
       })().catch((e) => {
         const message = e && e.message ? e.message : String(e);

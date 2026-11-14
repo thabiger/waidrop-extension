@@ -10,6 +10,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { JSDOM } from 'jsdom';
 import { startMainHook } from './helpers/main-hook-loader.mjs';
+import { installHookPeer } from './helpers/hook-peer.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -56,15 +57,10 @@ function makeWindow(collections) {
     url: 'https://web.whatsapp.com/',
     runScripts: 'outside-only',
   });
-  const posted = [];
-  dom.window.addEventListener('message', (e) => {
-    if (e.data && e.data.source === 'waidrop-main') posted.push(e.data);
-  });
   dom.window.require = (name) => (name === 'WAWebCollections' ? collections : undefined);
-  dom.window.__WAIDROP_EXPOSE_TEST_API__ = true;
-  // Plain jsdom: the hook takes the legacy postMessage transport.
+  const peer = installHookPeer(dom.window);
   startMainHook(dom.window);
-  return { dom, api: dom.window.__waArchiveMain, posted };
+  return { dom, api: dom.window.__waArchiveMain, posted: peer.frames };
 }
 
 // --- outgoing DM -------------------------------------------------------------
@@ -255,10 +251,6 @@ function makeWindow(collections) {
     url: 'https://web.whatsapp.com/',
     runScripts: 'outside-only',
   });
-  const posted = [];
-  dom.window.addEventListener('message', (event) => {
-    if (event.data && event.data.source === 'waidrop-main') posted.push(event.data);
-  });
   dom.window.require = (name) => {
     if (name === 'WAWebCollections') throw new Error('Requiring unknown module "WAWebCollections"');
     if (name === 'WAWebMsgCollection') return { MsgCollection: collections.Msg };
@@ -266,7 +258,8 @@ function makeWindow(collections) {
     if (name === 'WAWebContactCollection') return { ContactCollection: collections.Contact };
     return undefined;
   };
-  dom.window.__WAIDROP_EXPOSE_TEST_API__ = true;
+  const peer = installHookPeer(dom.window);
+  const posted = peer.frames;
   startMainHook(dom.window);
   await sleep(40);
 
@@ -299,10 +292,6 @@ function makeWindow(collections) {
     url: 'https://web.whatsapp.com/',
     runScripts: 'outside-only',
   });
-  const posted = [];
-  dom.window.addEventListener('message', (event) => {
-    if (event.data && event.data.source === 'waidrop-main') posted.push(event.data);
-  });
   dom.window.__d = {};
   dom.window.require = (name) => {
     requireCalls.push(name);
@@ -310,7 +299,8 @@ function makeWindow(collections) {
     if (modulesMap[name]) return modulesMap[name].factory();
     throw new Error(`Requiring unknown module "${name}"`);
   };
-  dom.window.__WAIDROP_EXPOSE_TEST_API__ = true;
+  const peer = installHookPeer(dom.window);
+  const posted = peer.frames;
   startMainHook(dom.window);
   await sleep(40);
 
@@ -339,18 +329,15 @@ function makeWindow(collections) {
     url: 'https://web.whatsapp.com/',
     runScripts: 'outside-only',
   });
-  const posted = [];
-  dom.window.addEventListener('message', (event) => {
-    if (event.data && event.data.source === 'waidrop-main') posted.push(event.data);
-  });
   dom.window.require = (name) => (name === 'WAWebCollections' ? collections : undefined);
   dom.window.Debug = { VERSION: '2.3000.test' };
-  startMainHook(dom.window);
+  const peer = installHookPeer(dom.window);
+  const posted = peer.frames;
+  startMainHook(dom.window, undefined, { testApi: false });
 
   check('production: test API not exposed', dom.window.__waArchiveMain === undefined);
 
-  // jsdom has no MessageChannel, so the real isolated content script would
-  // announce the legacy transport. Simulate that signal here.
+  // A page-forged legacy announce must not flip any transport mode.
   dom.window.postMessage({ source: 'waidrop-legacy' }, '*');
   await sleep(600);
   const health = posted.find((item) => item.kind === 'health');

@@ -5,14 +5,27 @@ public documents before launch.
 
 ## Documents
 
-- [ ] `PRIVACY.md` and `TERMS.md` are published as public HTML pages.
-- [ ] The Chrome Web Store privacy URL points to the published privacy policy.
-- [ ] The Terms URL is linked from the store listing and popup footer.
+- [ ] `PRIVACY.md` and `TERMS.md` are published as public HTML pages at
+      `https://waidrop.tnkrd.com/privacy` and `https://waidrop.tnkrd.com/terms`.
+- [ ] `https://waidrop.tnkrd.com/privacy`, `/terms` and `/support` return HTTP
+      200 without authentication.
+- [ ] The Chrome Web Store privacy URL is
+      `https://waidrop.tnkrd.com/privacy` and the support URL is
+      `https://waidrop.tnkrd.com/support`.
+- [ ] The Terms URL is linked from the store listing and popup footer, and the
+      store listing includes `https://waidrop.tnkrd.com/terms`.
+- [ ] The site legal pages are updated whenever `PRIVACY.md` or `TERMS.md`
+      changes.
 - [ ] The popup footer links to both pages.
-- [ ] The documents identify **PYXIS Tomasz Habiger**, Poland, and
-      `waidrop@tnkrd.com`.
-- [ ] Add a registered postal address if counsel requires one; the current
-      documents say it is available on request.
+- [ ] The documents include the contact email `waidrop@tnkrd.com` at the end.
+- [ ] The legal pages identify the controller (Tomasz Habiger) and the contact
+      email.
+- [ ] `PRIVACY.md` and the live privacy page include the Chrome Web Store
+      Limited Use statement:
+      "The use of information received from Google APIs will adhere to the
+      Chrome Web Store User Data Policy, including the Limited Use
+      requirements."
+- [ ] Review applicable contact disclosure requirements before publishing.
 - [ ] If selling to Polish consumers, consider a Polish-language version of the
       key consumer information and terms.
 - [ ] If actively targeting UK consumers, check whether a UK representative is
@@ -23,7 +36,7 @@ public documents before launch.
 - [ ] The popup donation button points to `https://buymeacoffee.com/tomaszhabiq`.
 - [ ] The donation page identifies the recipient and links its own terms/privacy
       policy.
-- [ ] The extension makes clear that donations are optional and unlock nothing.
+- [ ] The popup makes clear that donations are optional and unlock nothing.
 - [ ] The complaint/support process is documented and monitored.
 
 ## View-once media (build variants)
@@ -38,6 +51,9 @@ public documents before launch.
 
 ## Data protection
 
+- [ ] The extension shows a first-run disclosure and requires affirmative
+      consent before capture. The content script, background writes and uploads
+      are gated on that consent.
 - [ ] Support emails have a stated retention period (currently 12 months).
 - [ ] The email provider is covered by appropriate data processing terms.
 - [ ] If a data breach occurs, there is a process to notify users and UODO where
@@ -57,9 +73,11 @@ public documents before launch.
 
 ## Packaging
 
+- [ ] The Chrome Web Store upload is `dist/waidrop-<version>-public.zip` built by
+      `npm run release:check:public`; the personal ZIP is never selected.
 - [ ] `npm run release:check` passes and the built ZIP contains only allowlisted
       runtime files.
-- [ ] The built ZIP includes `LICENSE` and the popup identifies the project as
-      open source.
+- [ ] The built ZIP includes Apache-2.0 `LICENSE` and `NOTICE`, and the popup
+      identifies the project as open source.
 - [ ] The built ZIP contains no payment-provider code or vendor notices.
 - [ ] The donation URL is present in the popup and uses `rel="noopener"`.

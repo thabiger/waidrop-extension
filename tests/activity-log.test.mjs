@@ -30,7 +30,7 @@ globalThis.chrome = {
   },
 };
 
-const { logActivity, getActivityLog, getActivityLogClearedAt, clearActivityLog } = await import(
+const { logActivity, getActivityLog, getActivityLogClearedAt, clearActivityLog, redactIdentifier } = await import(
   '../background/activityLog.js'
 );
 
@@ -39,6 +39,18 @@ const check = (name, cond, extra = '') => {
   console.log(`${cond ? 'PASS' : 'FAIL'}  ${name}${extra ? ' :: ' + extra : ''}`);
   if (!cond) failures++;
 };
+
+check(
+  'redact: jid phone digits masked',
+  redactIdentifier('false_49171234567@c.us_ABC123') === 'false_#11@c.us_ABC#3',
+  redactIdentifier('false_49171234567@c.us_ABC123')
+);
+check('redact: empty becomes unknown', redactIdentifier('') === 'unknown');
+check(
+  'redact: output bounded',
+  redactIdentifier('x'.repeat(200)).length <= 65,
+  String(redactIdentifier('x'.repeat(200)).length)
+);
 
 logActivity('info', 'Upload started.');
 logActivity('error', 'Dropbox upload failed.');

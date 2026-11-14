@@ -1,5 +1,6 @@
 export const runtimeFiles = [
   'LICENSE',
+  'NOTICE',
   'background/activityLog.js',
   'background/archivePolicy.js',
   'background/archiveCodec.js',
@@ -26,6 +27,7 @@ export const runtimeFiles = [
   'popup/popup.html',
   'popup/popup.js',
   'utils/buildFlags.js',
+  'utils/consent.js',
   'utils/mediaSettings.js',
   'utils/messageParser.js',
 ].sort();

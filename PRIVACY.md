@@ -1,17 +1,14 @@
+<!-- Canonical public URL: https://waidrop.tnkrd.com/privacy -->
+
 # WAiDrop Privacy Policy
 
 Effective date: 2026-10-29  
-Last updated: 2026-11-07
+Last updated: 2026-11-13
 
-## 1. Who we are
+## 1. Scope and controller
 
-WAiDrop is operated by **PYXIS**, a sole trader established in
-Poland ("we", "us").
-
-Privacy contact: **waidrop@tnkrd.com**
-
-For postal correspondence, contact us by email and we will provide the business
-address.
+WAiDrop is developed and controlled by **Tomasz Habiger**. Contact:
+**waidrop@tnkrd.com**.
 
 We are the controller of the support data described below. We are **not** the
 controller of the archive content you create: that content stays on your device
@@ -31,9 +28,12 @@ third-party services, which have their own privacy policies.
   encryption key.
 - Local archive payloads and media, and all Dropbox backups, are encrypted. The
   key stays on your device and must be saved by you; lost keys cannot be
-  recovered.
+  recovered. Dropbox object names are not encrypted: they include your account
+  alias and calendar dates/message timestamps, which reveal when a chat was
+  active, but not message content, names, phone numbers or media.
 - Messages dated before installation stay local until you enable full-history
-  sync.
+  sync. Full-history sync uploads only messages WAiDrop has already captured; it
+  does not request older history from WhatsApp.
 - View-once ("disappearing") media is **never captured** in the published
   extension; such messages are skipped and only their metadata is archived.
 - WAiDrop is free. The popup contains an optional Buy Me a Coffee link; no
@@ -116,8 +116,12 @@ We use HTTPS for network connections. Message payloads, chat identity fields and
 media bytes are encrypted locally before they reach IndexedDB, and Dropbox
 archives are encrypted in your browser with AES-256-GCM before upload. The
 encryption key is stored in `chrome.storage.local` and is never sent to Dropbox
-or to us. Local encryption protects IndexedDB at rest, not a fully compromised
-browser profile. No method of storage or transmission is completely secure.
+or to us. Archive object paths are outside the encrypted payload: they contain
+the account alias and dates/message timestamps (visible to Dropbox and anyone
+who can list the app folder), while chat hashes are keyed and do not reveal
+phone numbers. Local encryption protects IndexedDB at rest, not a fully
+compromised browser profile. No method of storage or transmission is completely
+secure.
 Protect your device, your Dropbox account and your encryption key. If you lose
 the key, the local and Dropbox archives cannot be recovered.
 
@@ -161,6 +165,9 @@ address.
 
 ## 13. Chrome Web Store Limited Use
 
+The use of information received from Google APIs will adhere to the Chrome Web
+Store User Data Policy, including the Limited Use requirements.
+
 We use data only to provide the archiving, backup and export features described
 in this policy. We do not:
 
@@ -172,4 +179,4 @@ in this policy. We do not:
 
 ## 14. Contact
 
-Email: **waidrop@tnkrd.com**
+**waidrop@tnkrd.com**

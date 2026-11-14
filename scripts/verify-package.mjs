@@ -384,6 +384,12 @@ if (publicBuild) {
   ) {
     fail('Public ZIP popup.html still contains the active media option');
   }
+  if (!/Disappearing\/self-destructing media is not captured\./.test(publicPopupHtml)) {
+    fail('Public ZIP popup.html is missing the public consent media wording');
+  }
+  if (/Disappearing\/self-destructing media is off by default\./.test(publicPopupHtml)) {
+    fail('Public ZIP popup.html contains the personal consent media wording');
+  }
   // Developer info (Dropbox scopes + redirect URI) is personal-build only.
   if (/Required Dropbox app scopes|chromiumapp\.org|DEVELOPER_BEGIN/.test(publicPopupHtml)) {
     fail('Public ZIP popup.html still contains developer info');

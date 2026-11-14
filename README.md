@@ -2,77 +2,44 @@
 
 WAiDrop is a Chrome extension that archives WhatsApp Web chats into an
 encrypted local IndexedDB store and can back up an encrypted archive to
-Dropbox. It is free and open source under the MIT License, and includes all
-chats, full-history sync, offline catch-up, multiple WhatsApp accounts and
-full-resolution media.
+Dropbox. It is free and open source under the Apache License, Version 2.0,
+and includes all chats, full-history sync, offline catch-up, multiple WhatsApp accounts and
+full-resolution images, stickers and GIFs.
 
-### Relationship to WhatsApp's Terms
+## How WAiDrop works with WhatsApp
 
-WhatsApp's [Terms of Service](https://www.whatsapp.com/legal/terms-of-service)
-prohibit automated or bulk messaging, unauthorized access, interference,
-scraping/harvesting, reverse engineering or code extraction, reselling its
-Services or data, and competing messaging services. WhatsApp's Help Center also
-explains its stance on [harvesting personal
-information](https://faq.whatsapp.com/434518851968943) and [automated or bulk
-messaging](https://faq.whatsapp.com/5957850900902049). 
+WAiDrop starts with chat data that WhatsApp Web has already delivered to your
+own logged-in browser tab. It does not use a WhatsApp network API, a proxy, a
+backend, or automated messaging. It does not send messages, mark chats read,
+change presence, drive the WhatsApp UI, hook WebSocket traffic, or modify
+WhatsApp's code. It observes the page's already-loaded data and archives only
+your own session content.
 
-WAiDrop is designed to avoid those behaviors: it is a read-only archive of 
-content that users have exclusively received for their own use, with no messaging
-automation, no server-side access, and no collection of data that isn't directly
-intended for the user.
-
-## Why WAiDrop stands out
-
-Here is a detailed list of things that make WAiDrop stand out from many other
-solutions and custom integrations, stemming from this approach:
-
-- **No messaging automation.** It never sends messages, types, clicks, reads receipts,
-  marks chats as read, changes presence, or drives WhatsApp's UI.
-
-- **No WhatsApp API or proxy.** It doesn't implement or use any unofficial network API,
-  nor does it route your session through a server. It works directly inside your own
-  logged-in WhatsApp Web browser tab.
-
-- **Only your own session data.** It archives messages, captions, and metadata that 
-  WhatsApp has already delivered to your browser. It doesn't actively crawl public
-  data, harvest your address book, or collect any data that you haven't explicitly
-  received for your own use.
-
-- **Read-only page observation.** It observes the DOM and, where available, the page's
-  already-loaded message store, including a bounded startup scan of messages
-  WhatsApp loaded into memory before capture started. It doesn't modify
-  WhatsApp's code, patch prototypes, inject UI, hook into WebSocket traffic, or
-  intercept network requests.
-
-- **No media requests unless you opt in.**
-
-- **Local-first and user-controlled.** The archive stays in your browser's IndexedDB,
-  while Dropbox backups go directly to your own Dropbox account. The developer
-  never receives the archive, token, or encryption key. Local payloads and
-  Dropbox objects are encrypted before storage.
-
-- **Low-impact by design.** No page writes, no UI control, rate-limited processing,
-  idle scheduling, and a DOM fallback that doesn't require access to WhatsApp's
-  internal modules.
-
-## Disclaimer
-
-Despite these efforts, bear in mind that this product is not affiliated with 
-WhatsApp or Meta. The interpretation of WhatsApp's Terms is up to WhatsApp/Meta.
+In the store build, media capture is Off or Passive only and makes no WhatsApp
+media requests. The archive stays in your browser's IndexedDB; if you connect
+Dropbox, encrypted objects go directly to your own Dropbox app folder. The
+developer never receives your archive, Dropbox token, or encryption key. Local
+payloads and Dropbox objects are encrypted before storage.
 
 WAiDrop is not affiliated with, endorsed by, or authorized by WhatsApp or Meta.
-Capture may stop working when WhatsApp makes changes, and accounts may be restricted.
-You use the extension at your own risk and are responsible for complying with 
-WhatsApp's Terms and applicable laws.
+These design choices do not guarantee compliance with
+[WhatsApp's Terms](https://www.whatsapp.com/legal/terms-of-service);
+WhatsApp/Meta determines how those terms are interpreted and enforced. Capture
+may stop working, and accounts may be restricted. Use at your own risk and
+comply with applicable terms and laws.
+
+See [docs/capture-model.md](docs/capture-model.md) for the technical capture
+model.
 
 ## Features
 
+- First-run disclosure and affirmative consent before capture starts.
 - Archive group chats and 1:1 chats.
 - Encrypted local IndexedDB archive and encrypted Dropbox backup.
 - Offline catch-up after reopening WhatsApp Web.
 - Optional full-history sync for messages dated before installation.
 - One archive alias per WhatsApp account.
-- Full-resolution media capture in Off, Passive and Active modes.
+- Full-resolution image, sticker and GIF capture in Off, Passive and Active modes.
 - Unlimited Dropbox sync.
 - Local offload and media repair.
 
@@ -95,6 +62,8 @@ readers who want to support development; donations do not unlock features.
 2. Open Chrome and navigate to `chrome://extensions/`.
 3. Enable "Developer mode".
 4. Click "Load unpacked" and select this directory.
+5. Open the extension popup, read the first-run disclosure and accept it before
+   capture starts.
 
 ## What it captures
 
@@ -192,8 +161,8 @@ closed.
 
 ## Donations
 
-WAiDrop is free and open source under the [MIT License](LICENSE). There is no
-paid tier, checkout or license-key check. The popup includes an optional
+WAiDrop is free and open source under the
+[Apache License, Version 2.0](LICENSE). There is no paid tier, checkout or license-key check. The popup includes an optional
 **Buy me a coffee** button that opens <https://buymeacoffee.com/tomaszhabiq> in a
 new tab. Donations are voluntary and do not affect features.
 
@@ -201,7 +170,13 @@ See [`docs/support.md`](docs/support.md).
 
 ## Support
 
+Support: **https://waidrop.tnkrd.com/support**
+
 Email: **waidrop@tnkrd.com**
+
+Privacy: **https://waidrop.tnkrd.com/privacy**
+
+Terms: **https://waidrop.tnkrd.com/terms**
 
 ## Development
 
@@ -246,7 +221,7 @@ popup/                      settings and recent-message UI
 utils/messageParser.js      DOM message parser
 utils/mediaSettings.js      media mode migration/resolution
 utils/buildFlags.js         build-variant feature flags (view-once capture)
-docs/                       archive, stealth and support docs
+docs/                       archive, capture model, legal, listing and support docs
 scripts/build.mjs           Chrome Web Store package builder
 scripts/runtime-files.mjs   runtime package allowlist
 scripts/verify-package.mjs  package content and secret checks
@@ -259,7 +234,9 @@ scripts/verify-package.mjs  package content and secret checks
   queue status remains plaintext for indexing.
 - Dropbox backups encrypt message content, chat names, phone numbers, message
   ids and full-resolution media before upload. The master key is never sent to
-  Dropbox; losing it makes the local and Dropbox archives unreadable.
+  Dropbox; losing it makes the local and Dropbox archives unreadable. Dropbox
+  object names are not encrypted and reveal the account alias plus calendar
+  dates/message timestamps, not message content.
 - The key is stored in `chrome.storage.local`, so this protects IndexedDB at
   rest but not a fully compromised browser profile.
 - Messages dated before installation stay local until full-history sync is
@@ -269,4 +246,11 @@ scripts/verify-package.mjs  package content and secret checks
   Coffee button opens an external page governed by Buy Me a Coffee's policies.
 
 See [`PRIVACY.md`](PRIVACY.md), [`TERMS.md`](TERMS.md) and
-[`docs/stealth.md`](docs/stealth.md).
+[`docs/capture-model.md`](docs/capture-model.md).
+
+## Software license
+
+Licensed under Apache-2.0; see [LICENSE](LICENSE) and [NOTICE](NOTICE).
+Contributions intentionally submitted for inclusion in this project are licensed
+under Apache-2.0, unless explicitly agreed otherwise. Third-party components
+retain their own licenses.

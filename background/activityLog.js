@@ -45,6 +45,18 @@ async function readLog() {
   }
 }
 
+/**
+ * Make a message/chat identifier safe for the persisted activity log.
+ * WhatsApp ids embed phone numbers and jids in plaintext; digit runs are
+ * masked so the log can still be correlated without carrying PII at rest.
+ */
+export function redactIdentifier(value) {
+  const text = String(value == null ? '' : value);
+  if (!text) return 'unknown';
+  const masked = text.replace(/\d{3,}/g, (digits) => `#${digits.length}`);
+  return masked.length > 64 ? `${masked.slice(0, 64)}…` : masked;
+}
+
 export function logActivity(level, message) {
   const entry = {
     at: Date.now(),

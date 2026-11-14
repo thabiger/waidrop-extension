@@ -7,6 +7,7 @@
  */
 import { JSDOM } from 'jsdom';
 import { startMainHook } from './helpers/main-hook-loader.mjs';
+import { installHookPeer } from './helpers/hook-peer.mjs';
 
 let failures = 0;
 const check = (name, cond, extra = '') => {
@@ -30,11 +31,6 @@ function makeWindow(globalMessages, chatMessages = []) {
     url: 'https://web.whatsapp.com/',
     runScripts: 'outside-only',
   });
-  const posted = [];
-  dom.window.addEventListener('message', (event) => {
-    if (event.data && event.data.source === 'waidrop-main') posted.push(event.data);
-  });
-
   const listeners = {};
   const loaders = { calls: 0 };
   const chat = {
@@ -69,10 +65,9 @@ function makeWindow(globalMessages, chatMessages = []) {
   };
 
   dom.window.require = (name) => (name === 'WAWebCollections' ? collections : undefined);
-  dom.window.__WAIDROP_EXPOSE_TEST_API__ = true;
-  // Plain jsdom: the hook takes the legacy postMessage transport.
+  const peer = installHookPeer(dom.window);
   startMainHook(dom.window);
-  return { dom, posted, loaders, api: dom.window.__waArchiveMain };
+  return { dom, posted: peer.frames, loaders, api: dom.window.__waArchiveMain };
 }
 
 // --- global + per-chat coverage, dedupe, passive media ----------------------

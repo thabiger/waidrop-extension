@@ -72,6 +72,11 @@ check(
 const manifest = JSON.parse(read('manifest.json'));
 const contentJs = (manifest.content_scripts || [])[0]?.js || [];
 check(
+  'manifest loads consent.js before content.js',
+  contentJs.includes('utils/consent.js') && contentJs.indexOf('utils/consent.js') < contentJs.indexOf('content/content.js'),
+  JSON.stringify(contentJs)
+);
+check(
   'manifest loads buildFlags.js before content.js',
   contentJs.includes('utils/buildFlags.js') && contentJs.indexOf('utils/buildFlags.js') < contentJs.indexOf('content/content.js'),
   JSON.stringify(contentJs)
@@ -79,8 +84,10 @@ check(
 
 const runtimeFiles = read('scripts/runtime-files.mjs');
 check('runtime allowlist includes buildFlags.js', /'utils\/buildFlags\.js'/.test(runtimeFiles));
+check('runtime allowlist includes consent.js', /'utils\/consent\.js'/.test(runtimeFiles));
 
 const contentSrc = read('content/content.js');
+check('content.js waits for first-run consent', /await consent\.waitForConsent\(\)/.test(contentSrc));
 check(
   'content.js gates captureViewOnce on the build flag',
   /allowViewOnceCapture\(\)\s*&&\s*value\.mediaCaptureViewOnce === true/.test(contentSrc)
@@ -93,6 +100,14 @@ check('content.js no longer reads entitlements', !/entitlement/i.test(contentSrc
 check(
   'popup.js disables the active mode text when the build flag is off',
   /allowActiveMediaDownloads === false\) delete MEDIA_MODE_TEXT\.active/.test(read('popup/popup.js'))
+);
+
+const popupSrc = read('popup/popup.js');
+check('popup.js has public consent media wording', /not captured/.test(popupSrc));
+check('popup.js has personal consent media wording', /off by default/.test(popupSrc));
+check(
+  'popup.js switches consent media wording on the build flag',
+  /consentMediaPolicy[\s\S]*?allowViewOnceCapture === false/.test(popupSrc)
 );
 
 console.log(failures === 0 ? '\nALL BUILD FLAGS CHECKS PASSED' : `\n${failures} CHECK(S) FAILED`);

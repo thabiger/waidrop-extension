@@ -34,10 +34,11 @@ import {
   isValidMasterKey,
   dropboxContentHash,
   keyFingerprint,
+  payloadHashHex,
 } from './crypto.js';
 import {
   normalizeArchiveMode,
-  isEncryptedMode,
+  parseArchiveMode,
   objectExtension,
   chatObjectExtension,
   mediaObjectExtension,
@@ -48,6 +49,7 @@ import {
 } from './archiveCodec.js';
 import { DEFAULT_ACCOUNT_ALIAS, DEFAULT_DROPBOX_APP_KEY } from './config.js';
 import { createPayloadHasher } from './payloadHash.js';
+import { redactIdentifier } from './activityLog.js';
 import { getInstalledAt } from './installInfo.js';
 import { isPreInstallMessage, PRE_INSTALL_REASON } from './archivePolicy.js';
 import {
@@ -77,19 +79,19 @@ const MAX_MEDIA_BYTES_PER_RUN = 100 * 1024 * 1024;
 export const FORMAT_VERSION = 4;
 
 export function formatBody(mode) {
-  const encrypted = isEncryptedMode(mode);
+  normalizeArchiveMode(mode);
   return JSON.stringify({
     format: FORMAT_VERSION,
     layout: 'waidrop',
-    mode: encrypted ? 'encrypted' : 'plaintext',
-    encryption: encrypted ? 'aes-256-gcm' : 'none',
-    ...(encrypted ? { keyDerivation: 'hkdf-sha256' } : { objectEncoding: 'utf-8' }),
-    chatHash: encrypted ? 'hmac-sha256-16' : 'sha256-16',
+    mode: 'encrypted',
+    encryption: 'aes-256-gcm',
+    keyDerivation: 'hkdf-sha256',
+    chatHash: 'hmac-sha256-16',
     media: {
       layout: 'waidrop-media-v1',
-      encryption: encrypted ? 'aes-256-gcm' : 'none',
-      ...(encrypted ? { keyDerivation: 'hkdf-sha256' } : {}),
-      hash: encrypted ? 'hmac-sha256-32' : 'sha256-32',
+      encryption: 'aes-256-gcm',
+      keyDerivation: 'hkdf-sha256',
+      hash: 'hmac-sha256-32',
     },
   });
 }
@@ -98,9 +100,13 @@ export function resolveArchiveMode() {
   return 'encrypted';
 }
 
+// One path segment, no slashes or traversal: the alias is interpolated into
+// every Dropbox path.
+const ACCOUNT_ALIAS_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$/;
+
 export function resolveAccountAlias(settings) {
   const alias = settings && typeof settings.accountAlias === 'string' ? settings.accountAlias.trim() : '';
-  return alias || DEFAULT_ACCOUNT_ALIAS;
+  return ACCOUNT_ALIAS_RE.test(alias) ? alias : DEFAULT_ACCOUNT_ALIAS;
 }
 
 let running = false;
@@ -182,8 +188,13 @@ export async function mediaObjectPath(keys, settings, entry, mode = 'encrypted')
   };
 }
 
-export function chatIndexFingerprint(chats) {
-  return JSON.stringify(
+/**
+ * Keyed fingerprint of the chat directory. The unkeyed JSON (names, phones,
+ * pushnames) must never be persisted; the HMAC is only used for equality
+ * checks against the last uploaded index.
+ */
+export async function chatIndexFingerprint(keys, chats) {
+  const text = JSON.stringify(
     (chats || [])
       .map((chat) => [
         chat.chatId,
@@ -196,6 +207,7 @@ export function chatIndexFingerprint(chats) {
       ])
       .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
   );
+  return payloadHashHex(keys, text);
 }
 
 export function isChatMapCurrent(chat, mode = 'encrypted') {
@@ -221,16 +233,27 @@ export async function isFormatCurrent(settings, mode = 'encrypted') {
   );
 }
 
-export async function isChatIndexCurrent(settings, mode = 'encrypted') {
+export async function isChatIndexCurrent(settings, mode = 'encrypted', keys = null) {
   const chats = await getChats();
   const flag = await getMeta('dropboxChatIndexUploaded');
-  return !!(
-    flag &&
-    flag.backend === 'dropbox' &&
-    flag.account === settings.accountAlias &&
-    (flag.mode || 'encrypted') === normalizeArchiveMode(mode) &&
-    flag.fingerprint === chatIndexFingerprint(chats)
-  );
+  if (
+    !flag ||
+    flag.backend !== 'dropbox' ||
+    flag.account !== settings.accountAlias ||
+    (flag.mode || 'encrypted') !== normalizeArchiveMode(mode)
+  ) {
+    return false;
+  }
+  let derived = keys;
+  if (!derived && settings.encryptionKey) {
+    try {
+      derived = await deriveKeys(settings.encryptionKey);
+    } catch (e) {
+      return false;
+    }
+  }
+  if (!derived) return false;
+  return flag.fingerprint === (await chatIndexFingerprint(derived, chats));
 }
 
 async function uploadPendingMedia(settings, keys, mode, options = {}) {
@@ -400,7 +423,7 @@ async function uploadChangedChatMaps(settings, keys, mode, options = {}) {
       count++;
     } catch (e) {
       failedChatIds.push(chat.chatId);
-      log('error', `Chat metadata: ${chat.chatId || 'unknown chat'} failed — ${messageOf(e)}`);
+      log('error', `Chat metadata: ${redactIdentifier(chat.chatId)} failed — ${messageOf(e)}`);
     }
   }
   log('success', `Chat metadata: ${count} chat(s) uploaded.`);
@@ -410,7 +433,7 @@ async function uploadChangedChatMaps(settings, keys, mode, options = {}) {
 async function ensureChatIndex(settings, keys, mode) {
   const chats = await getChats();
   if (!chats.length) return false;
-  const fingerprint = chatIndexFingerprint(chats);
+  const fingerprint = await chatIndexFingerprint(keys, chats);
   const flag = await getMeta('dropboxChatIndexUploaded');
   if (
     flag &&
@@ -508,7 +531,7 @@ export async function runUpload(options = {}) {
     const auth = await getAuth();
     const keyFp = mode === 'encrypted' ? await keyFingerprint(settings.encryptionKey) : null;
     const formatFlag = await getMeta('dropboxFormatUploaded');
-    const formatMode = formatFlag ? normalizeArchiveMode(formatFlag.mode || 'encrypted') : null;
+    const formatMode = formatFlag ? parseArchiveMode(formatFlag.mode || 'encrypted') : null;
     const startingFreshEncrypted =
       mode === 'encrypted' &&
       formatMode === 'plaintext' &&

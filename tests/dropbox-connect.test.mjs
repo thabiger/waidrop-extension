@@ -7,7 +7,7 @@
 import 'fake-indexeddb/auto';
 import { DEFAULT_DROPBOX_APP_KEY } from '../background/config.js';
 
-const storage = { settings: null };
+const storage = { settings: null, waidropConsent: { version: 1, acceptedAt: Date.now() } };
 const listeners = [];
 let launchedUrl = null;
 
@@ -131,6 +131,16 @@ configure();
 delete storage.dropboxAuth;
 let response = await connectMessage();
 check('connect: succeeds', response && response.ok === true, JSON.stringify(response));
+const requestedScopes = launchedUrl
+  ? String(new URL(launchedUrl).searchParams.get('scope') || '').split(/\s+/)
+  : [];
+check(
+  'connect: requests all Dropbox scopes',
+  ['account_info.read', 'files.metadata.read', 'files.content.write', 'files.content.read'].every((scope) =>
+    requestedScopes.includes(scope)
+  ),
+  JSON.stringify(requestedScopes)
+);
 check('connect: account name returned', response && response.accountName === 'Test User', response && response.accountName);
 check('connect: refresh token stored', storage.dropboxAuth && storage.dropboxAuth.refreshToken === 'refresh-token-1');
 check('connect: account enriched', storage.dropboxAuth && storage.dropboxAuth.accountName === 'Test User');

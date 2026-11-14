@@ -1,0 +1,20 @@
+WAiDrop — Chrome Web Store media upload guide
+
+Upload the five screenshots in filename order:
+  screenshots/01-your-whatsapp-archive.png
+  screenshots/02-first-run-consent.png
+  screenshots/03-encrypted-dropbox.png
+  screenshots/04-passive-archiving.png
+  screenshots/05-manage-local-storage.png
+
+Other upload fields:
+  store-icon-128x128.png
+  small-promo-440x280.png
+  marquee-1400x560.png (optional)
+
+Use store-listing-description.txt for the detailed store description. It includes
+the separate open-source CLI/MCP disclosure.
+
+Do not upload these media files as the extension package. Use
+dist/waidrop-<version>-public.zip for the extension upload and never submit the
+personal build.

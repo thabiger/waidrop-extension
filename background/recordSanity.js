@@ -97,6 +97,23 @@ export function sanitizeChatEntry(input) {
 }
 
 /**
+ * Normalize a MEDIA_STATUS report from the page. Only the fields the archive
+ * consumes are kept; chatId is bounded like every other record field.
+ */
+export function sanitizeMediaStatus(input) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return null;
+  const msgId = optString(input.msgId, MAX_MSG_ID);
+  if (!msgId) return null;
+  const out = { msgId };
+  const status = optString(input.status, 32);
+  out.status = status || 'failed';
+  const chatId = optString(input.chatId, MAX_MSG_ID);
+  if (chatId) out.chatId = chatId;
+  out.lastError = typeof input.error === 'string' ? input.error.slice(0, 256) : null;
+  return out;
+}
+
+/**
  * Normalize MEDIA_BEGIN metadata. Returns null when the session is unusable
  * (missing id/msgId, absurd declared size); totalChars defaults to 0 when
  * absent, matching the previous coercion in the port handler. The received

@@ -52,6 +52,7 @@ const storageData = {
   messages: legacyMessages,
   lastSync: 1729166100200,
   installedAt: 0,
+  waidropConsent: { version: 1, acceptedAt: 1729166000000 },
 };
 
 const listeners = [];
@@ -95,6 +96,23 @@ check('legacy messages removed from chrome.storage', storageData.messages === un
 check('legacy lastSync removed from chrome.storage', storageData.lastSync === undefined);
 check('migrated records enqueued in outbox', (await idb.getPendingCount()) === 2);
 
+// MEDIA_STATUS sanitizer: bounded chatId/status/error, no passthrough fields.
+{
+  const clean = sanity.sanitizeMediaStatus({
+    msgId: 'MSG-1',
+    chatId: 'c'.repeat(300),
+    status: 's'.repeat(80),
+    error: 'e'.repeat(500),
+    extra: 'dropped',
+  });
+  check('media status: msgId kept', clean && clean.msgId === 'MSG-1');
+  check('media status: oversized chatId dropped', clean && clean.chatId === undefined);
+  check('media status: status capped', clean && clean.status === 'failed', clean && clean.status);
+  check('media status: error capped', clean && clean.lastError.length === 256);
+  check('media status: unknown fields dropped', clean && !('extra' in clean));
+  check('media status: missing msgId rejected', sanity.sanitizeMediaStatus({ chatId: 'x' }) === null);
+}
+
 const listener = listeners[0];
 
 // unknown type
@@ -124,6 +142,7 @@ const listener = listeners[0];
   response = null;
   const keep = listener({ type: 'BRIDGE_INIT' }, { tab: { id: 42 } }, (r) => (response = r));
   check('BRIDGE_INIT keeps the channel open', keep === true);
+  await sleep(10);
   check(
     'BRIDGE_INIT mints a per-session key',
     !!response && response.status === 'ok' && /^[0-9a-f]{64}$/.test(response.bridgeKey),
@@ -142,6 +161,7 @@ const listener = listeners[0];
   );
   response = null;
   listener({ type: 'BRIDGE_INIT' }, { tab: { id: 43 } }, (r) => (response = r));
+  await sleep(10);
   check(
     'BRIDGE_INIT keys are per-session, never reused',
     injections.length === 2 && injections[1].args[0] !== injections[0].args[0]

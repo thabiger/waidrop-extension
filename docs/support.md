@@ -1,6 +1,6 @@
 # Free Distribution and Donations
 
-WAiDrop is free and open source under the MIT License; see
+WAiDrop is free and open source under the Apache License, Version 2.0; see
 [`LICENSE`](../LICENSE). There is no paid tier, checkout, license key, trial or
 entitlement check. Every feature described in the README and store listing is
 available without a purchase.

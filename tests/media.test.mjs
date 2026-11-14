@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { webcrypto } from 'node:crypto';
 import { JSDOM } from 'jsdom';
 import { startMainHook } from './helpers/main-hook-loader.mjs';
+import { installHookPeer } from './helpers/hook-peer.mjs';
 import { DEFAULT_DROPBOX_APP_KEY } from '../background/config.js';
 import { installLocalCodec } from './helpers/local-codec.mjs';
 
@@ -61,10 +62,6 @@ function makeWindow(options = {}) {
     url: 'https://web.whatsapp.com/',
     runScripts: 'outside-only',
   });
-  const posted = [];
-  dom.window.addEventListener('message', (event) => {
-    if (event.data && event.data.source === 'waidrop-main') posted.push(event.data);
-  });
   const listeners = {};
   const mediaBytes = new TextEncoder().encode('full-resolution-image-bytes');
   const fakeBlob = {
@@ -87,7 +84,6 @@ function makeWindow(options = {}) {
     Chat: { get: () => ({ name: 'Test Chat' }), getModelsArray: () => [] },
     Contact: { get: () => null },
   };
-  Object.defineProperty(dom.window, 'crypto', { value: webcrypto, configurable: true });
   dom.window.require = (name) => {
     state.requireCalls[name] = (state.requireCalls[name] || 0) + 1;
     if (name === 'WAWebCollections') return collections;
@@ -107,12 +103,11 @@ function makeWindow(options = {}) {
     }
     return undefined;
   };
-  dom.window.__WAIDROP_EXPOSE_TEST_API__ = true;
-  // Plain jsdom: the hook takes the legacy postMessage transport.
+  const peer = installHookPeer(dom.window);
   startMainHook(dom.window);
   if (!options.unconfigured) dom.window.__waArchiveMain.setMediaConfig({ enabled: true });
   const emit = (event, message) => (listeners[event] || []).forEach((cb) => cb(message));
-  return { dom, posted, emit, state, mediaBytes };
+  return { dom, posted: peer.frames, emit, state, mediaBytes };
 }
 
 function imageMessage(overrides = {}) {
@@ -317,6 +312,7 @@ const storage = {
   settings: null,
   dropboxAuth: null,
   installedAt: 0,
+  waidropConsent: { version: 1, acceptedAt: Date.now() },
 };
 globalThis.chrome = {
   storage: {

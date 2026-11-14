@@ -12,7 +12,7 @@ import { getSettings, resolveAccountAlias } from './uploader.js';
 import { deriveKeys, keyFingerprint } from './crypto.js';
 import { getAuth } from './dropbox.js';
 import { downloadPartRecords } from './archiveReader.js';
-import { logActivity } from './activityLog.js';
+import { logActivity, redactIdentifier } from './activityLog.js';
 
 function messageOf(error) {
   return error && error.message ? error.message : String(error);
@@ -72,19 +72,19 @@ export async function runMediaRepair(options = {}) {
       continue;
     }
     if (message.remote.archiveMode && message.remote.archiveMode !== mode) {
-      log('warn', `Media repair paused: archive mode changed for ${repair.msgId}.`);
+      log('warn', `Media repair paused: archive mode changed for ${redactIdentifier(repair.msgId)}.`);
       continue;
     }
     if (mode === 'encrypted' && message.remote.keyFingerprint && message.remote.keyFingerprint !== keyFp) {
-      log('warn', `Media repair paused: key changed for ${repair.msgId}.`);
+      log('warn', `Media repair paused: key changed for ${redactIdentifier(repair.msgId)}.`);
       continue;
     }
     if (message.remote.accountAlias && message.remote.accountAlias !== settings.accountAlias) {
-      log('warn', `Media repair paused: account changed for ${repair.msgId}.`);
+      log('warn', `Media repair paused: account changed for ${redactIdentifier(repair.msgId)}.`);
       continue;
     }
     if (message.remote.dropboxAccountId && auth.accountId && message.remote.dropboxAccountId !== auth.accountId) {
-      log('warn', `Media repair paused: Dropbox account changed for ${repair.msgId}.`);
+      log('warn', `Media repair paused: Dropbox account changed for ${redactIdentifier(repair.msgId)}.`);
       continue;
     }
     if (!groups.has(message.remote.path)) groups.set(message.remote.path, []);

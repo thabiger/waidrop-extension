@@ -12,7 +12,7 @@ const TOKEN_URL = 'https://api.dropboxapi.com/oauth2/token';
 const AUTH_STORAGE_KEY = 'dropboxAuth';
 const EXPIRY_SKEW_MS = 60000;
 
-const OPERATIONAL_SCOPES = ['files.metadata.read', 'files.content.write'];
+const OPERATIONAL_SCOPES = ['files.metadata.read', 'files.content.write', 'files.content.read'];
 const REQUESTED_SCOPES = ['account_info.read', ...OPERATIONAL_SCOPES];
 
 function grantedScopes(document) {

@@ -84,6 +84,11 @@ const logOutput = document.getElementById('logOutput');
 const logCountEl = document.getElementById('logCount');
 const logErrorDot = document.getElementById('logErrorDot');
 const clearLogBtn = document.getElementById('clearLogBtn');
+const consentPanel = document.getElementById('consentPanel');
+const appContent = document.getElementById('appContent');
+const consentCheckbox = document.getElementById('consentCheckbox');
+const consentAcceptBtn = document.getElementById('consentAcceptBtn');
+const consentStatus = document.getElementById('consentStatus');
 
 const buildFlags = window.WABuildFlags || {
   allowViewOnceCapture: true,
@@ -102,6 +107,14 @@ const buildFlags = window.WABuildFlags || {
     const developerInfo = document.getElementById('developerInfo');
     if (developerInfo) developerInfo.remove();
   }
+}
+
+const consentMediaPolicy = document.getElementById('consentMediaPolicy');
+if (consentMediaPolicy) {
+  consentMediaPolicy.textContent =
+    buildFlags.allowViewOnceCapture === false
+      ? 'Disappearing/self-destructing media is not captured.'
+      : 'Disappearing/self-destructing media is off by default.';
 }
 
 const MAX_LOG_ENTRIES = 200;
@@ -271,7 +284,7 @@ async function loadMessages() {
 
     statusEl.style.display = 'none';
     messagesContainer.style.display = 'block';
-    messagesList.innerHTML = recent.map(renderRecord).join('');
+    messagesList.replaceChildren(...recent.map(renderRecordElement));
   } catch (e) {
     statusEl.textContent = 'Failed to load archive: ' + (e && e.message ? e.message : e);
     statusEl.style.display = 'block';
@@ -279,7 +292,10 @@ async function loadMessages() {
   }
 }
 
-function renderRecord(record) {
+// Record fields come from remote senders and are untrusted. Build DOM nodes
+// and assign textContent only: message ids, names and text must never be
+// interpolated as HTML (the popup can read the archive key and Dropbox auth).
+function renderRecordElement(record) {
   const dirGlyph = record.direction === 'out' ? '→' : record.direction === 'in' ? '←' : '·';
   const when = record.ts ? new Date(record.ts) : record.capturedAt ? new Date(record.capturedAt) : null;
   const senderLabel = record.payloadCleared
@@ -315,19 +331,40 @@ function renderRecord(record) {
     record.media && record.media.status === 'not_downloaded' ? 'preview only' : null,
   ].filter(Boolean);
 
-  return `
-    <div class="message-item">
-      <div class="message-head">
-        <span class="message-dir">${dirGlyph}</span>
-        <span class="message-sender">${escapeHtml(record.chatName || 'Unknown chat')}</span>
-        <span class="message-time">${when ? when.toLocaleString() : ''}</span>
-      </div>
-      <div class="message-content">
-        <span class="message-sub">${escapeHtml(senderLabel)}:</span>
-        <span class="message-body">${escapeHtml(body)}</span>
-        ${flags.length ? `<span class="message-flags">${flags.join(' · ')}</span>` : ''}
-      </div>
-    </div>`;
+  const item = document.createElement('div');
+  item.className = 'message-item';
+
+  const head = document.createElement('div');
+  head.className = 'message-head';
+  const dir = document.createElement('span');
+  dir.className = 'message-dir';
+  dir.textContent = dirGlyph;
+  const sender = document.createElement('span');
+  sender.className = 'message-sender';
+  sender.textContent = record.chatName || 'Unknown chat';
+  const time = document.createElement('span');
+  time.className = 'message-time';
+  time.textContent = when ? when.toLocaleString() : '';
+  head.append(dir, sender, time);
+
+  const content = document.createElement('div');
+  content.className = 'message-content';
+  const sub = document.createElement('span');
+  sub.className = 'message-sub';
+  sub.textContent = `${senderLabel}:`;
+  const bodyEl = document.createElement('span');
+  bodyEl.className = 'message-body';
+  bodyEl.textContent = body;
+  content.append(sub, bodyEl);
+  if (flags.length) {
+    const flagsEl = document.createElement('span');
+    flagsEl.className = 'message-flags';
+    flagsEl.textContent = flags.join(' · ');
+    content.append(flagsEl);
+  }
+
+  item.append(head, content);
+  return item;
 }
 
 function formatBytes(value) {
@@ -335,12 +372,6 @@ function formatBytes(value) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = String(text == null ? '' : text);
-  return div.innerHTML;
 }
 
 async function exportArchive() {
@@ -713,8 +744,8 @@ function currentSettings() {
 }
 
 function validateSettings(settings, options = {}) {
-  if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(settings.accountAlias)) {
-    return 'Account alias may only contain letters, digits and . _ -';
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$/.test(settings.accountAlias)) {
+    return 'Account alias must be 1-32 characters: letters, digits and . _ -';
   }
   if (settings.offloadRetentionDays < 0 || settings.offloadRetentionDays > 365) {
     return 'Offload retention must be between 0 and 365 days.';
@@ -756,10 +787,22 @@ saveSettingsBtn.addEventListener('click', async () => {
   if (localKeyReady) setSettingsStatus('Saved.');
 });
 
+// Reveal the key only briefly; it must not remain visible on screen after a
+// generate/copy action.
+let keyRevealTimer = null;
+function revealKeyTemporarily(ms = 15000) {
+  setEncryptionKey.type = 'text';
+  if (keyRevealTimer) clearTimeout(keyRevealTimer);
+  keyRevealTimer = setTimeout(() => {
+    keyRevealTimer = null;
+    setEncryptionKey.type = 'password';
+  }, ms);
+}
+
 generateKeyBtn.addEventListener('click', () => {
   if (generateKeyBtn.disabled) return;
   setEncryptionKey.value = generateMasterKey();
-  setEncryptionKey.type = 'text';
+  revealKeyTemporarily();
   setEncryptionKeyAcknowledged.checked = false;
   updateOffloadStatus();
   setSettingsStatus(
@@ -772,7 +815,7 @@ copyKeyBtn.addEventListener('click', async () => {
     await navigator.clipboard.writeText(setEncryptionKey.value);
     setSettingsStatus('Key copied to clipboard.');
   } catch (e) {
-    setEncryptionKey.type = 'text';
+    revealKeyTemporarily();
     setEncryptionKey.focus();
     setEncryptionKey.select();
     setSettingsStatus('Copy failed — select the key manually and copy it.', { error: true });
@@ -890,7 +933,69 @@ repairMediaBtn.addEventListener('click', async () => {
   loadMessages();
 });
 
+function showConsentPanel() {
+  if (consentPanel) consentPanel.hidden = false;
+  if (appContent) appContent.hidden = true;
+}
+
+function showAppContent() {
+  if (consentPanel) consentPanel.hidden = true;
+  if (appContent) appContent.hidden = false;
+}
+
+if (consentCheckbox && consentAcceptBtn) {
+  consentCheckbox.addEventListener('change', () => {
+    consentAcceptBtn.disabled = !consentCheckbox.checked;
+  });
+}
+
+if (consentAcceptBtn) {
+  consentAcceptBtn.addEventListener('click', async () => {
+    const consent = window.WAConsent;
+    if (!consent) {
+      if (consentStatus) consentStatus.textContent = 'Consent module failed to load. Reload the extension and try again.';
+      return;
+    }
+    if (!consentCheckbox || !consentCheckbox.checked) return;
+    consentAcceptBtn.disabled = true;
+    consentAcceptBtn.textContent = 'Enabling...';
+    if (consentStatus) consentStatus.textContent = '';
+    try {
+      await consent.acceptConsent();
+      try {
+        await chrome.runtime.sendMessage({ type: 'CONSENT_ACCEPTED' });
+      } catch (e) {
+        /* capture starts on the next WhatsApp Web load even if the broadcast fails */
+      }
+      showAppContent();
+      await init();
+    } catch (e) {
+      consentAcceptBtn.disabled = false;
+      consentAcceptBtn.textContent = 'Enable archiving';
+      if (consentStatus) {
+        consentStatus.textContent = 'Could not save consent: ' + (e && e.message ? e.message : e);
+      }
+    }
+  });
+}
+
 async function init() {
+  const consent = window.WAConsent;
+  if (!consent) {
+    showConsentPanel();
+    if (consentAcceptBtn) {
+      consentAcceptBtn.disabled = true;
+      consentAcceptBtn.textContent = 'Consent module unavailable';
+    }
+    if (consentStatus) consentStatus.textContent = 'Reload the extension and try again.';
+    return;
+  }
+  const consentRecord = await consent.getConsent();
+  if (!consentRecord || consentRecord.version !== consent.CONSENT_VERSION) {
+    showConsentPanel();
+    return;
+  }
+  showAppContent();
   await loadSettings();
   await loadMessages();
 }

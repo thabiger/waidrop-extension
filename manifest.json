@@ -3,7 +3,7 @@
   "name": "WAiDrop: WhatsApp Chat Archiver",
   "version": "1.0.0",
   "minimum_chrome_version": "102",
-  "description": "Archive WhatsApp Web chats locally and encrypted to Dropbox, with full-resolution media, full-history sync and offline catch-up.",
+  "description": "Free encrypted WhatsApp Web archive in Dropbox with CLI query, full-history sync and downloaded full-resolution images/stickers.",
   "permissions": [
     "storage",
     "unlimitedStorage",
@@ -22,6 +22,7 @@
         "https://web.whatsapp.com/*"
       ],
       "js": [
+        "utils/consent.js",
         "utils/buildFlags.js",
         "utils/mediaSettings.js",
         "utils/messageParser.js",

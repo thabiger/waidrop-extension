@@ -1,10 +1,9 @@
+<!-- Canonical public URL: https://waidrop.tnkrd.com/terms -->
+
 # WAiDrop Terms of Service
 
 Effective date: 2026-10-29  
-Last updated: 2026-11-07
-
-WAiDrop is provided by **PYXIS Tomasz Habiger**, a sole trader established in
-Poland ("we", "us"). Contact: **waidrop@tnkrd.com**.
+Last updated: 2026-11-14
 
 By installing, accessing or using WAiDrop, you agree to these terms. If you do
 not agree, do not install or use the extension, and uninstall it if you already
@@ -15,7 +14,6 @@ have it.
 - **Extension**: the WAiDrop Chrome extension and its local components.
 - **Archive**: the messages, media and metadata the extension stores locally
   and, if enabled, in your Dropbox account.
-- **Services**: the Extension, support and related services.
 - **Consumer**: a natural person acting outside their trade, business, craft or
   profession.
 
@@ -23,19 +21,24 @@ have it.
 
 All WAiDrop features are available at no charge.
 
-The Extension's source code is open source under the MIT License. The full
-license text is in [`LICENSE`](LICENSE). Subject to the MIT License, you may use,
-copy, modify, merge, publish, distribute, sublicense and sell copies of the
-Extension. Where these terms conflict with the MIT License for the source code,
-the MIT License controls.
+The Extension, including its source code and distributed builds, is licensed
+under the Apache License, Version 2.0. See [`LICENSE`](LICENSE) and
+[`NOTICE`](NOTICE). The companion WAiDrop CLI and MCP server are also licensed
+under Apache-2.0 in their own repository.
+
+Each component's accompanying open-source license governs your rights to use,
+copy, modify and redistribute that component. These terms do not replace or
+restrict those rights. Changes to these terms, or discontinuation of support
+or distribution, do not revoke rights granted under the applicable license.
 
 We may update or change the Extension, including its features, to comply with
 law, address security issues, or adapt to WhatsApp/Meta or other third-party
 changes.
 
-## 3. Restrictions
+## 3. Lawful use and responsibilities
 
-You must not:
+You are responsible for complying with applicable law and third-party terms.
+In particular, you must not:
 
 - use the Extension for illegal surveillance, stalking, harassment, or
   non-consensual monitoring;
@@ -45,8 +48,9 @@ You must not:
 - bypass WhatsApp security, access controls or usage restrictions;
 - remove or obscure copyright or license notices from redistributed copies.
 
-Rights to use, copy, modify and distribute the source code are governed by the
-MIT License.
+These responsibilities do not add conditions to the Apache-2.0 license or
+limit its permissions. The software license does not grant rights to other
+people's messages, media, personal data or third-party services.
 
 ## 4. Donations
 
@@ -131,16 +135,18 @@ alongside these terms and should be read together with them.
 
 ## 10. Components
 
-The WAiDrop source code is licensed under the MIT License; see
-[`LICENSE`](LICENSE). Third-party dependencies remain under their own licenses.
+The WAiDrop Extension is licensed under Apache-2.0; see [`LICENSE`](LICENSE)
+and [`NOTICE`](NOTICE). The companion CLI and MCP server use Apache-2.0.
+Third-party dependencies remain under their own licenses. These licenses do
+not grant rights to third-party trademarks or archived conversation content.
 
 ## 11. No warranty
 
-To the maximum extent permitted by law, the Extension and Services are provided
-**"as is" and "as available"**, without warranties of any kind, express or
-implied, including fitness for a particular purpose, merchantability and
-non-infringement. We do not warrant that capture, upload, offload, repair or
-restore will be uninterrupted, complete or error-free.
+To the maximum extent permitted by law, the Extension is provided **"as is" and
+"as available"**, without warranties of any kind, express or implied, including
+fitness for a particular purpose, merchantability and non-infringement. We do
+not warrant that capture, upload, offload, repair or restore will be
+uninterrupted, complete or error-free.
 
 Some jurisdictions do not allow certain exclusions. In that case, the exclusions
 apply only to the extent permitted.
@@ -169,10 +175,11 @@ your Archive, or your breach of these terms or applicable law.
 
 You may stop using the Extension at any time and uninstall it.
 
-We may suspend or terminate your access to the Extension if you materially
-breach these terms or engage in fraud or abuse. Termination does not affect
-provisions that by their nature should survive, including licensing
-restrictions, disclaimers, liability limits, indemnity and governing law.
+We may discontinue our distribution, updates or support. This does not
+terminate your rights to software copies under their accompanying open-source
+licenses. Any termination of license rights is governed solely by the
+applicable license. Provisions that by their nature should survive continue
+to apply, including disclaimers, liability limits and governing law.
 
 ## 15. Changes to these terms
 
@@ -196,9 +203,13 @@ in these terms limits those rights.
 - **Severability**: if a provision is unenforceable, the remaining provisions
   remain in effect.
 - **Entire agreement**: these terms and the Privacy Policy are the entire
-  agreement between us regarding the Extension.
-- **Assignment**: you may not assign your rights without our consent. We may
-  assign our rights in connection with a business transfer.
+  agreement between us regarding our distribution and support of the Extension,
+  together with its accompanying open-source license. The open-source license
+  controls software rights in the event of a conflict.
+- **Assignment**: any assignment restriction in these terms does not apply to
+  rights granted under an open-source license. We may assign our distribution
+  and support obligations in connection with a business transfer, subject to
+  applicable law.
 - **Survival**: provisions that by their nature should survive termination will
   survive.
 - **Electronic notices**: we may communicate with you electronically, including
@@ -208,4 +219,5 @@ in these terms limits those rights.
 
 ## 18. Contact
 
-Email: **waidrop@tnkrd.com**
+WAiDrop is developed and published by **Tomasz Habiger**. 
+Contact: **waidrop@tnkrd.com**.

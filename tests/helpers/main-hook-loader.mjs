@@ -21,11 +21,11 @@ export function readMainHookSrc() {
   return readFileSync(path.join(root, 'background', 'inject-main.js'), 'utf8');
 }
 
-export function startMainHook(window, key = TEST_BRIDGE_KEY) {
+export function startMainHook(window, key = TEST_BRIDGE_KEY, options = { testApi: true }) {
   const src = readMainHookSrc().replace(/^export\s+function\s+hookMain/m, 'function hookMain');
   window.eval(src);
   if (typeof window.hookMain !== 'function') {
     throw new Error('hookMain not defined after eval - did the export shape change?');
   }
-  window.hookMain(key);
+  window.hookMain(key, options);
 }

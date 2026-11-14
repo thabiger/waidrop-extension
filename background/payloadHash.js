@@ -1,5 +1,5 @@
-import { payloadHashHex, sha256Hex } from './crypto.js';
-import { isEncryptedMode } from './archiveCodec.js';
+import { payloadHashHex } from './crypto.js';
+import { normalizeArchiveMode } from './archiveCodec.js';
 
 export function payloadProjection(record) {
   return {
@@ -22,9 +22,7 @@ export function stableStringify(value) {
 }
 
 export function createPayloadHasher(keys, mode = 'encrypted') {
-  if (!isEncryptedMode(mode)) {
-    return async (record) =>
-      sha256Hex(new TextEncoder().encode(stableStringify(payloadProjection(record))));
-  }
+  // Fail closed: the unkeyed plaintext-mode hash no longer exists.
+  normalizeArchiveMode(mode);
   return async (record) => payloadHashHex(keys, stableStringify(payloadProjection(record)));
 }

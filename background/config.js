@@ -6,6 +6,6 @@
  * point at a different App Folder. The key is public (OAuth client id); never
  * ship a client secret.
  */
-export const DEFAULT_DROPBOX_APP_KEY = 'ydtsl7okrf4xuee';
+export const DEFAULT_DROPBOX_APP_KEY = 'wqiz8ksk2f0jwmd';
 
 export const DEFAULT_ACCOUNT_ALIAS = 'primary';
