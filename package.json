@@ -24,7 +24,7 @@
     "release:check:public": "npm test && npm run build:public && npm run verify:package:public"
   },
   "devDependencies": {
-    "fake-indexeddb": "^6.2.6",
+    "fake-indexeddb": "^6.2.8",
     "jsdom": "^30.1.3"
   }
 }
