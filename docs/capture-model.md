@@ -102,8 +102,9 @@ module loader. There is no public evidence WhatsApp does this.
   theoretically observable.
 - Active mode makes server-visible media requests. Keep it off unless needed.
 - WhatsApp module churn can break the store hook; the DOM fallback remains.
-- The static bridge key is a capability against page scripts, not a secret from
-  the extension author or the provider.
+- The per-session bridge key is a capability against page scripts, not a
+  secret from the extension author or the provider; only SHA-256 MACs of it
+  ever cross the bridge.
 - Base64 conversion of captured media still runs in the isolated content
   script.
 
