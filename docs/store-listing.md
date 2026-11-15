@@ -1,5 +1,12 @@
 # Chrome Web Store Listing Notes
 
+## Live listing
+
+<https://chromewebstore.google.com/detail/waidrop-whatsapp-chat-arc/phmlbpolkcfhocjeginepmegoilljnkc>
+
+The listing is published. Use this URL for the website, README and CLI
+documentation links.
+
 ## Short description
 
 Free encrypted WhatsApp Web archive in Dropbox with CLI query, full-history sync
@@ -126,7 +133,7 @@ refund/support requests.
 
 ## Assets
 
-Ready-to-upload files are in `store-assets/`:
+Store asset files are kept in `store-assets/` for listing updates:
 
 - `store-assets/screenshots/01-your-whatsapp-archive.png` through
   `store-assets/screenshots/05-manage-local-storage.png` — five 1280x800

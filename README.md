@@ -5,6 +5,8 @@ encrypted local IndexedDB store and can back up an encrypted archive to
 Dropbox. Connect it to your chosen AI through MCP to find answers, 
 organize plans and pick up what needs you.
 
+[**Install WAiDrop for Chrome →**](https://chromewebstore.google.com/detail/waidrop-whatsapp-chat-arc/phmlbpolkcfhocjeginepmegoilljnkc)
+
 ## The whole picture
 
 WAiDrop links your WhatsApp Web session to an encrypted archive in your own
@@ -79,6 +81,19 @@ WAiDrop is free. The popup links to an optional Buy Me a Coffee page for
 readers who want to support development; donations do not unlock features.
 
 ## Installation
+
+Install **WAiDrop for Chrome** from the
+[Chrome Web Store](https://chromewebstore.google.com/detail/waidrop-whatsapp-chat-arc/phmlbpolkcfhocjeginepmegoilljnkc).
+
+1. Open the listing and click **Add to Chrome**.
+2. Open WhatsApp Web and keep the tab open while your archive builds.
+3. Open the extension popup, read the first-run disclosure and accept it before
+   capture starts.
+4. Save your encryption key somewhere secure.
+
+### Install from source
+
+For development and review builds:
 
 1. Clone this repository.
 2. Open Chrome and navigate to `chrome://extensions/`.
